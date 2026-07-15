@@ -1,0 +1,16 @@
+services:
+  financeiro_db:
+    image: postgres:15-alpine
+    container_name: financeiro_db_container
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - financeiro_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Raul@2025
+      POSTGRES_DB: api_financeiro
+
+volumes:
+  financeiro_db_data:
