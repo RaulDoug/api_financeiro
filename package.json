@@ -10,8 +10,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node --env-file=.env index.js",
+    "dev": "nodemon --env-file=.env src/server.js",
+    "start": "node --env-file=.env src/server.js",
     "test": "test"
   },
   "dependencies": {
@@ -19,7 +19,8 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "pg-promise": "^12.7.0"
   },
   "devDependencies": {
     "eslint": "^10.7.0",
