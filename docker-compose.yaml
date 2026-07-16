@@ -12,5 +12,19 @@ services:
       POSTGRES_PASSWORD: Raul@2025
       POSTGRES_DB: api_financeiro
 
+  financeiro_db_test:
+    image: postgres:15-alpine
+    container_name: financeiro_db_test_container
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - financeiro_db_test_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Raul@2025
+      POSTGRES_DB: api_financeiro_test
+
 volumes:
   financeiro_db_data:
+  financeiro_db_test_data:
