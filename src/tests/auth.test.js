@@ -110,7 +110,7 @@ test('Não deve realizar o login com senha incorreta', async () => {
 });
 
 
-test('Não deve realizar o login com e-mail não cadastradado', async () => {
+test('Não deve realizar o login com e-mail não cadastrado', async () => {
   const response = await request(app).post('/api/auth/login').send({
     email: 'naoCadastrado@test.com',
     password: 'senhaDeTesteNaoCadastrado',
