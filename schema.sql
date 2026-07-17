@@ -17,7 +17,7 @@ CREATE TABLE users (
 -------------------------------------------------
 CREATE TABLE wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome VARCHAR NOT NULL,
+  name VARCHAR NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

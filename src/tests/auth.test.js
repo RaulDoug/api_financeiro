@@ -1,16 +1,7 @@
-import { expect, test, beforeEach, afterAll } from 'vitest';
+import { expect, test } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import pool from '../config/db.js';
-
-
-beforeEach(async () => {
-  await pool.query('TRUNCATE TABLE users CASCADE;');
-});
-
-afterAll(async () => {
-  await pool.end();
-});
 
 
 // Testes CADASTRO
