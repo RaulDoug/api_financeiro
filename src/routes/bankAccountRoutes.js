@@ -10,8 +10,8 @@ router.use(authenticateJWT);
 router.use(injectActiveWallet);
 
 router.get('/', bankAccountController.findAllOrFindOne);
-router.post('/', bankAccountController.create);
-router.patch('/:id', bankAccountController.update);
-router.delete('/:id', bankAccountController.delete);
+router.post('/register', bankAccountController.create);
+router.patch('/update/:id', bankAccountController.update);
+router.delete('/delete/:id', bankAccountController.delete);
 
 export default router;

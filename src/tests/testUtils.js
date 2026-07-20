@@ -20,3 +20,23 @@ export async function createAuthenticatedUser() {
     authHeader: `Bearer ${token}`,
   };
 }
+
+export async function createWallet(userId = null, role = 'owner') {
+  const walletResponse = await pool.query({
+    text: 'INSERT INTO wallets(name) VALUES ($1) RETURNING id, name',
+    values: ['Carteira de Teste'],
+  });
+
+  const wallet = walletResponse.rows[0];
+
+  if (userId) {
+    await pool.query({
+      text: 'INSERT INTO users_wallets (user_id, wallet_id, role) VALUES ($1, $2, $3)',
+      values: [userId, wallet.id, role],
+    });
+
+    return wallet;
+  }
+
+  return wallet;
+}

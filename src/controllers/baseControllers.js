@@ -72,6 +72,10 @@ export default class BaseController {
 
       const updatedItem = await this.service.updateById(id, walletId, data);
 
+      if (!updatedItem) {
+        return res.status(404).json({ message: 'Registro não encontrado ou você não tem permissão para alterá-lo' });
+      }
+
       return res.status(200).json({
         message: `Campo(s) (${updateFields}) alterado(s) com sucesso!`,
         item: updatedItem,
@@ -92,6 +96,10 @@ export default class BaseController {
       }
 
       const deletedItem = await this.service.deleteById(id, walletId);
+
+      if (!deletedItem) {
+        return res.status(404).json({ message: 'Registro não encontrado ou você não tem permissão para alterá-lo' });
+      }
 
       return res.status(200).json({
         message: 'Item excluído com sucesso',
