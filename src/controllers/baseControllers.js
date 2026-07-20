@@ -3,12 +3,20 @@ export default class BaseController {
     this.service = service;
   }
 
-  findAll = async (req, res) => {
+  findAllOrFindOne = async (req, res) => {
     try {
+      const filters = req.query;
       const walletId = req.activeWalletId;
 
-      if (!walletId) {
-        return res.status(400).json({ message: 'Nenhuma carteira selecionada' });
+      const queryFilters = {
+        ...filters,
+        wallet_id: walletId,
+      };
+
+      if (Object.keys(filters).length > 0) {
+        const item = await this.service.findOne(queryFilters);
+
+        return res.status(200).json({ item });
       }
 
       const list = await this.service.findAll(walletId);
@@ -17,29 +25,11 @@ export default class BaseController {
     } catch (error) {
       console.log(error);
 
-      if (error.message === 'Nenhum registro localizado') {
+      if (error.message === 'Filtros obrigatórios para consulta') {
         return res.status(400).json({ message: error.message });
       }
 
-      return res.status(500).json({ message: 'Erro interno do servidor' });
-    }
-  };
-
-  findOne = async (req, res) => {
-    try {
-      const filters = req.body;
-
-      if (!filters) {
-        return res.status(400).json({ message: 'Nenhum filtro informado' });
-      }
-
-      const item = await this.service.findOne(filters);
-
-      return res.status(200).json({ item });
-    } catch (error) {
-      console.log(error);
-
-      if (error.message === 'Filtros obrigatórios para consulta') {
+      if (error.message === 'Nenhum registro localizado') {
         return res.status(400).json({ message: error.message });
       }
 
