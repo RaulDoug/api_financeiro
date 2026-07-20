@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import WalletController from '../controllers/walletController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { injectActiveWallet } from '../middlewares/walletContext.js';
 
 const router = Router();
 const walletController = new WalletController();
