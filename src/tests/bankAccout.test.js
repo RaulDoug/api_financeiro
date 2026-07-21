@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
-import pool from '../config/db.js';
 import { createAuthenticatedUser, createWallet } from './testUtils.js';
 
 // Cadastrar uma conta bancária

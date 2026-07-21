@@ -41,7 +41,15 @@ export default class BaseController {
     try {
       const data = req.body;
 
-      if (!data || Object.keys(data).length === 0) {
+      const validationValues = Object.values(data).some(value => {
+        if (typeof value === 'string') {
+          return value.trim().length < 3;
+        }
+
+        return false;
+      });
+
+      if (!data || Object.keys(data).length === 0 || validationValues) {
         return res.status(400).json({ message: 'Deve infomar os valores necessários para a requisição' });
       }
 

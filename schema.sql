@@ -82,7 +82,7 @@ CREATE TABLE counterparties (
 CREATE TABLE pay_methods (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   wallet_id UUID NOT NULL,
-  name VARCHAR(255),
+  name VARCHAR(255) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_pm_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
 );
@@ -98,10 +98,10 @@ CREATE TYPE transactions_status AS ENUM ('pending', 'completed', 'cancelled');
 CREATE TABLE transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_id UUID NOT NULL,
-  bank_account_id BIGINT,
-  category_id BIGINT,
-  pay_methods_id BIGINT,
-  counterparty_id BIGINT,
+  bank_account_id BIGINT NOT NULL,
+  category_id BIGINT NOT NULL,
+  pay_methods_id BIGINT NOT NULL,
+  counterparty_id BIGINT NOT NULL,
   creator_user_id UUID NOT NULL,
   type transactions_type NOT NULL,
   status transactions_status NOT NULL DEFAULT 'pending',
