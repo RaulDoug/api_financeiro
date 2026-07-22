@@ -1,5 +1,5 @@
 import BaseController from './baseControllers.js';
-import InvestimentAssetServices from '../services/investimentAssetServices';
+import InvestimentAssetServices from '../services/investimentAssetServices.js';
 
 const investimentAssetServices = new InvestimentAssetServices();
 

@@ -71,7 +71,7 @@ CREATE TABLE counterparties (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   wallet_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
-  default_type counterparties_types NOT NULL,
+  type counterparties_types NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_couter_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
 );

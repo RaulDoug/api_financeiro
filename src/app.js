@@ -16,12 +16,12 @@ app.use(express.json());
 
 app.use('/api/auth', userRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use('/api/bankAccount', bankAccountRoutes);
+app.use('/api/bank-account', bankAccountRoutes);
 app.use('/api/categorie', categorieRoutes);
 app.use('/api/counterpartie', counterpartieRoutes);
-app.use('/api/payMethod', payMethodRoutes);
+app.use('/api/pay-method', payMethodRoutes);
 app.use('/api/transaction', transactionRoutes);
-app.use('/api/investimentAsset', investimentAssetRoutes);
+app.use('/api/investiment-asset', investimentAssetRoutes);
 
 
 export default app;

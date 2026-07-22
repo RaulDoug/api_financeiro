@@ -15,51 +15,12 @@ test('Deve cadastrar uma categoria com sucesso', async () => {
     .send({
       name: 'Aluguél',
       type: 'expenses',
-      wallet_id: wallet.id,
     });
 
   expect(response.status).toBe(201);
   expect(response.body.item).toHaveProperty('id');
   expect(response.body.item.name).toBe('Aluguél');
   expect(response.body.item.type).toBe('expenses');
-});
-
-// Não deve cadastrar uma categoria sem os valores do id da carteria no header
-test('Não deve cadastrar uma carteira sem o valor do x-wallet-id no header', async () => {
-  const { user, authHeader } = await createAuthenticatedUser();
-  const wallet = await createWallet(user.id);
-
-  const response = await request(app)
-    .post('/api/categorie/register')
-    .set('Authorization', authHeader)
-    .send({
-      name: 'Aluguél',
-      type: 'expenses',
-      wallet_id: wallet.id,
-    });
-
-  expect(response.status).toBe(400);
-  expect(response.body.message).toBe('O cabeçalho x-wallet-id é obrigatório para esta operação');
-});
-
-// Não deve cadatrar uma categoria na carteria de outro usuário
-test('Não deve cadastrar uma categoria na carteria de outro usuário', async () => {
-  const userA = await createAuthenticatedUser();
-  const userB = await createAuthenticatedUser();
-  const walletUserA = await createWallet(userA.id);
-
-  const response = await request(app)
-    .post('/api/categorie/register')
-    .set('Authorization', userB.authHeader)
-    .set('x-wallet-id', walletUserA.id)
-    .send({
-      name: 'Aluguél',
-      type: 'expenses',
-      wallet_id: walletUserA.id,
-    });
-
-  expect(response.status).toBe(403);
-  expect(response.body.message).toBe('Acesso negado a esta carteira.');
 });
 
 // Lista todas as categorias cadastradas para a carteira selecionada

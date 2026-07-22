@@ -40,20 +40,21 @@ export default class BaseController {
   create = async (req, res) => {
     try {
       const data = req.body;
+      const walletId = req.activeWalletId;
 
-      const validationValues = Object.values(data).some(value => {
-        if (typeof value === 'string') {
-          return value.trim().length < 3;
-        }
-
+      const hasInvalidValues = Object.values(data).some(value => {
+        if (value === undefined || value === null) { return true; }
+        if (typeof value === 'string' && value.trim().length === 0) { return true; }
         return false;
-      });
+      });;
 
-      if (!data || Object.keys(data).length === 0 || validationValues) {
+      if (!data || Object.keys(data).length === 0 || hasInvalidValues) {
         return res.status(400).json({ message: 'Deve infomar os valores necessários para a requisição' });
       }
 
-      const createdItem = await this.service.create(data);
+      const payload = { ...data, wallet_id: walletId };
+
+      const createdItem = await this.service.create(payload);
 
       return res.status(201).json({
         message: 'Item criado com sucesso',

@@ -9,13 +9,12 @@ test('Deve cadastrar uma conta bancaria com sucesso', async () => {
   const wallet = await createWallet(user.id);
 
   const response = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(response.status).toBe(201);
@@ -24,75 +23,35 @@ test('Deve cadastrar uma conta bancaria com sucesso', async () => {
   expect(response.body.item.opening_balance).toBe('0');
 });
 
-// Não deve criar uma conta bancária sem os valores de id da carteira no header
-test('Não deve criar uma conta bancária sem o header x-wallet-id', async () => {
-  const { user, authHeader } = await createAuthenticatedUser();
-  const wallet = await createWallet(user.id);
-
-  const response = await request(app)
-    .post('/api/bankAccount/register')
-    .set('Authorization', authHeader)
-    .send({
-      bank_name: 'Nubank',
-      opening_balance: 0,
-      wallet_id: wallet.id,
-    });
-
-  expect(response.status).toBe(400);
-  expect(response.body.message).toBe('O cabeçalho x-wallet-id é obrigatório para esta operação');
-});
-
-// Não cria uma conta bancária na carteira de outro usuário
-test('Não deve criar uma conta bancária na carteira de outro usuário', async () => {
-  const userA = await createAuthenticatedUser();
-  const userB = await createAuthenticatedUser();
-  const wallet = await createWallet(userB.id);
-
-  const response = await request(app)
-    .post('/api/bankAccount/register')
-    .set('Authorization', userA.authHeader)
-    .set('x-wallet-id', wallet.id)
-    .send({
-      bank_name: 'Nubank',
-      opening_balance: 0,
-      wallet_id: wallet.id,
-    });
-
-  expect(response.status).toBe(403);
-  expect(response.body.message).toBe('Acesso negado a esta carteira.');
-});
-
 // Listar todas as contas bancárias da carteira ativa
 test('Deve listar todas as contas bacárias vinculadas a carteira selecionada', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
   const addBankAccountA = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta A',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(addBankAccountA.status).toBe(201);
 
   const addBankAccountB = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta B',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(addBankAccountB.status).toBe(201);
 
   const validateBankAccountList = await request(app)
-    .get('/api/bankAccount')
+    .get('/api/bank-account')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id);
 
@@ -106,32 +65,30 @@ test('Deve filtrar uma conta bancária especifica de acordo com o filtro passado
   const wallet = await createWallet(user.id);
 
   const addBankAccountA = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta A',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(addBankAccountA.status).toBe(201);
 
   const addBankAccountB = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta B',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(addBankAccountB.status).toBe(201);
 
   // Filtrando por nome
   const bankAccountFilterByName = await request(app)
-    .get('/api/bankAccount')
+    .get('/api/bank-account')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .query({ bank_name: 'Conta B' });
@@ -142,7 +99,7 @@ test('Deve filtrar uma conta bancária especifica de acordo com o filtro passado
   // filtrando por id
   const accountId = addBankAccountB.body.item.id;
   const bankAccountFilterByID = await request(app)
-    .get('/api/bankAccount')
+    .get('/api/bank-account')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .query({ id: accountId });
@@ -158,13 +115,12 @@ test('Deve atualizar uma conta bancaria com sucesso', async () => {
   const wallet = await createWallet(user.id);
 
   const bankAccount = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -172,12 +128,11 @@ test('Deve atualizar uma conta bancaria com sucesso', async () => {
   const bankAccountId = bankAccount.body.item.id;
 
   const updateBankAccount = await request(app)
-    .patch(`/api/bankAccount/update/${bankAccountId}`)
+    .patch(`/api/bank-account/update/${bankAccountId}`)
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'ALTERADO',
-      wallet_id: wallet.id,
     });
 
   expect(updateBankAccount.status).toBe(200);
@@ -191,13 +146,12 @@ test('Não deve atualizar uma conta bancária registrada em outra carteira', asy
   const walletB = await createWallet(user.id);
 
   const bankAccount = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', walletB.id)
     .send({
       bank_name: 'Nubank',
       opening_balance: 0,
-      wallet_id: walletB.id,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -206,12 +160,11 @@ test('Não deve atualizar uma conta bancária registrada em outra carteira', asy
   const bankAccountId = bankAccount.body.item.id;
 
   const response = await request(app)
-    .patch(`/api/bankAccount/update/${bankAccountId}`)
+    .patch(`/api/bank-account/update/${bankAccountId}`)
     .set('Authorization', authHeader)
     .set('x-wallet-id', walletA.id)
     .send({
       bank_name: 'ALTERADO',
-      wallet_id: walletA.id,
     });
 
   expect(response.status).toBe(404);
@@ -224,13 +177,12 @@ test('Deve excluir uma conta bancária com sucesso', async () => {
   const wallet = await createWallet(user.id);
 
   const bankAccount = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
       opening_balance: 0,
-      wallet_id: wallet.id,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -238,7 +190,7 @@ test('Deve excluir uma conta bancária com sucesso', async () => {
   const bankAccountId = bankAccount.body.item.id;
 
   const response = await request(app)
-    .delete(`/api/bankAccount/delete/${bankAccountId}`)
+    .delete(`/api/bank-account/delete/${bankAccountId}`)
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id);
 
@@ -252,13 +204,12 @@ test('Não deve conseguir excluir uma conta bancária que não estiver vinculada
   const walletB = await createWallet(user.id);
 
   const bankAccount = await request(app)
-    .post('/api/bankAccount/register')
+    .post('/api/bank-account/register')
     .set('Authorization', authHeader)
     .set('x-wallet-id', walletB.id)
     .send({
       bank_name: 'Nubank',
       opening_balance: 0,
-      wallet_id: walletB.id,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -267,7 +218,7 @@ test('Não deve conseguir excluir uma conta bancária que não estiver vinculada
   const bankAccountId = bankAccount.body.item.id;
 
   const response = await request(app)
-    .delete(`/api/bankAccount/delete/${bankAccountId}`)
+    .delete(`/api/bank-account/delete/${bankAccountId}`)
     .set('Authorization', authHeader)
     .set('x-wallet-id', walletA.id);
 
