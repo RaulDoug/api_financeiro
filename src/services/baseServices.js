@@ -57,7 +57,7 @@ export default class BaseServices {
     return response.rows[0];
   }
 
-  async updateById(id, walletId, data) {
+  async updateById(displayId, walletId, data) {
     const keys = Object.keys(data);
     const values = Object.values(data);
 
@@ -72,18 +72,18 @@ export default class BaseServices {
 
     // Query de update
     const query = {
-      text: `UPDATE "${this.tableName}" SET ${setClause} WHERE id = $${idPlaceholderIndex} and wallet_id = $${walletIdPlaceholderIndex} RETURNING *`,
-      values: [...values, id, walletId],
+      text: `UPDATE "${this.tableName}" SET ${setClause} WHERE display_id = $${idPlaceholderIndex} and wallet_id = $${walletIdPlaceholderIndex} RETURNING *`,
+      values: [...values, displayId, walletId],
     };
 
     const response = await pool.query(query);
     return response.rows[0];
   }
 
-  async deleteById(id, walletId) {
+  async deleteById(displayId, walletId) {
     const query = {
-      text: `DELETE FROM "${this.tableName}" WHERE id = $1 AND wallet_id = $2 RETURNING *`,
-      values: [id, walletId],
+      text: `DELETE FROM "${this.tableName}" WHERE display_id = $1 AND wallet_id = $2 RETURNING *`,
+      values: [displayId, walletId],
     };
 
     const response = await pool.query(query);

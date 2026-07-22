@@ -60,7 +60,7 @@ test('Deve listar todas as contas bacárias vinculadas a carteira selecionada', 
 });
 
 // Filtra uma conta bancária especifica
-test('Deve filtrar uma conta bancária especifica de acordo com o filtro passado', async () => {
+test('Deve filtrar uma conta bancária especifica de acordo com o filtro de nome', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
@@ -96,17 +96,47 @@ test('Deve filtrar uma conta bancária especifica de acordo com o filtro passado
   expect(bankAccountFilterByName.status).toBe(200);
   expect(bankAccountFilterByName.body.item.bank_name).toBe('Conta B');
 
+
+});
+
+test('Deve filtrar uma conta bacaria pelo id', async () => {
+  const { user, authHeader } = await createAuthenticatedUser();
+  const wallet = await createWallet(user.id);
+
+  const addBankAccountA = await request(app)
+    .post('/api/bank-account/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      bank_name: 'Conta A',
+      opening_balance: 0,
+    });
+
+  expect(addBankAccountA.status).toBe(201);
+
+  const addBankAccountB = await request(app)
+    .post('/api/bank-account/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      bank_name: 'Conta B',
+      opening_balance: 0,
+    });
+
+  expect(addBankAccountB.status).toBe(201);
+
   // filtrando por id
-  const accountId = addBankAccountB.body.item.id;
+  const accountId = addBankAccountB.body.item.display_id;
+
   const bankAccountFilterByID = await request(app)
     .get('/api/bank-account')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
-    .query({ id: accountId });
+    .query({ display_id: accountId });
 
   expect(bankAccountFilterByID.status).toBe(200);
   expect(bankAccountFilterByID.body.item.bank_name).toBe('Conta B');
-  expect(bankAccountFilterByID.body.item.id).toBe(accountId);
+  expect(bankAccountFilterByID.body.item.display_id).toBe(accountId);
 });
 
 //Atualizar uma conta bancária
@@ -125,7 +155,7 @@ test('Deve atualizar uma conta bancaria com sucesso', async () => {
 
   expect(bankAccount.status).toBe(201);
 
-  const bankAccountId = bankAccount.body.item.id;
+  const bankAccountId = bankAccount.body.item.display_id;
 
   const updateBankAccount = await request(app)
     .patch(`/api/bank-account/update/${bankAccountId}`)
@@ -157,7 +187,7 @@ test('Não deve atualizar uma conta bancária registrada em outra carteira', asy
   expect(bankAccount.status).toBe(201);
 
   // Requisição feita passando o autenticador de outra carteira
-  const bankAccountId = bankAccount.body.item.id;
+  const bankAccountId = bankAccount.body.item.display_id;
 
   const response = await request(app)
     .patch(`/api/bank-account/update/${bankAccountId}`)
@@ -187,7 +217,7 @@ test('Deve excluir uma conta bancária com sucesso', async () => {
 
   expect(bankAccount.status).toBe(201);
 
-  const bankAccountId = bankAccount.body.item.id;
+  const bankAccountId = bankAccount.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/bank-account/delete/${bankAccountId}`)
@@ -215,7 +245,7 @@ test('Não deve conseguir excluir uma conta bancária que não estiver vinculada
   expect(bankAccount.status).toBe(201);
 
   // Requisição feita passando o operador de outra carteira 
-  const bankAccountId = bankAccount.body.item.id;
+  const bankAccountId = bankAccount.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/bank-account/delete/${bankAccountId}`)

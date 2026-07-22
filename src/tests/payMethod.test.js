@@ -79,24 +79,24 @@ test('Deve filtrar um pay method especifico pelo campo de nome', async () => {
   expect(filterByName.body.item.name).toBe('Pay Method A');
 });
 
-test('Deve filtrar um pay method especifico pelo campo de id', async () => {
+test('Deve filtrar um pay method especifico pelo campo de display_id', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
   const payMethodsList = await createMultiplesTestPayMethods(authHeader, wallet.id);
 
-  const payMethodId = payMethodsList[0].item.id;
+  const payMethodId = payMethodsList[0].item.display_id;
 
   const filterById = await request(app)
     .get('/api/pay-method')
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
-    .query({ id: payMethodId });
+    .query({ display_id: payMethodId });
 
   console.log(filterById);
 
   expect(filterById.status).toBe(200);
-  expect(filterById.body.item.id).toBe(payMethodId);
+  expect(filterById.body.item.display_id).toBe(payMethodId);
 });
 
 test('Deve realizar o update de um pay method com sucesso', async () => {
@@ -104,7 +104,7 @@ test('Deve realizar o update de um pay method com sucesso', async () => {
   const wallet = await createWallet(user.id);
 
   const payMethod = await createTestPayMethod(authHeader, wallet.id);
-  const payMethodId = payMethod.body.item.id;
+  const payMethodId = payMethod.body.item.display_id;
 
   // Update
   const response = await request(app)
@@ -114,7 +114,7 @@ test('Deve realizar o update de um pay method com sucesso', async () => {
     .send({ name: 'Nome Alterado' });
 
   expect(response.status).toBe(200);
-  expect(response.body.item.id).toBe(payMethodId);
+  expect(response.body.item.display_id).toBe(payMethodId);
   expect(response.body.item.name).toBe('Nome Alterado');
 });
 
@@ -124,7 +124,7 @@ test('Não deve atualizar um item listado em outra carteira', async () => {
   const walletB = await createWallet(user.id);
 
   const payMethod = await createTestPayMethod(authHeader, walletA.id); // Passando a carteira A
-  const payMethodId = payMethod.body.item.id;
+  const payMethodId = payMethod.body.item.display_id;
 
   // Tentativa de update passando a carteira B no x-wallet-id
   const response = await request(app)
@@ -142,7 +142,7 @@ test('Deve excluir um pay method com sucesso', async () => {
   const wallet = await createWallet(user.id);
 
   const payMethod = await createTestPayMethod(authHeader, wallet.id);
-  const payMethodId = payMethod.body.item.id;
+  const payMethodId = payMethod.body.item.display_id;
 
   // Excluir registro
   const response = await request(app)
@@ -160,7 +160,7 @@ test('Não deve excluir um pay method vinculado a outra carteira', async () => {
   const walletB = await createWallet(user.id);
 
   const payMethod = await createTestPayMethod(authHeader, walletA.id); // Passando a carteira A
-  const payMethodId = payMethod.body.item.id;
+  const payMethodId = payMethod.body.item.display_id;
 
   // Tentativa de exclusão passando carteira B no x-wallet-id
   const response = await request(app)

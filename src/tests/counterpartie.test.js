@@ -102,6 +102,17 @@ test('Deve filtrar uma counterpartier especifica de acordo com os filtros de (na
 
   expect(filterByType.status).toBe(200);
   expect(filterByType.body.item.type).toBe('payee');
+
+  // Consulta por "display_id"
+  const counterpartieAId = counterpartieA.body.item.display_id;
+  const filterByDisplayId = await request(app)
+    .get('/api/counterpartie')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .query({ display_id: counterpartieAId });
+
+  expect(filterByDisplayId.status).toBe(200);
+  expect(filterByDisplayId.body.item.display_id).toBe(counterpartieAId);
 });
 
 test('Deve atualizar uma counterpartie com sucesso', async () => {
@@ -119,7 +130,7 @@ test('Deve atualizar uma counterpartie com sucesso', async () => {
 
   expect(counterpartie.status).toBe(201);
 
-  const counterpartieId = counterpartie.body.item.id;
+  const counterpartieId = counterpartie.body.item.display_id;
 
   const updateCounterpartier = await request(app)
     .patch(`/api/counterpartie/update/${counterpartieId}`)
@@ -150,7 +161,7 @@ test('Não deve permitir atualizar a contrapartier vinculada em outra carteira',
   expect(counterpartieWalletA.status).toBe(201);
 
   // Tentativa de atualizar
-  const couterpartieId = counterpartieWalletA.body.item.id;
+  const couterpartieId = counterpartieWalletA.body.item.display_id;
 
   const response = await request(app)
     .patch(`/api/counterpartie/update/${couterpartieId}`)
@@ -180,7 +191,7 @@ test('Deve excluir uma contrapartie com sucesso', async () => {
   expect(counterpartie.status).toBe(201);
 
   // Deletar registro
-  const counterpartieId = counterpartie.body.item.id;
+  const counterpartieId = counterpartie.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/counterpartie/delete/${counterpartieId}`)
@@ -188,7 +199,7 @@ test('Deve excluir uma contrapartie com sucesso', async () => {
     .set('x-wallet-id', wallet.id);
 
   expect(response.status).toBe(200);
-  expect(response.body.item.id).toBe(counterpartieId);
+  expect(response.body.item.display_id).toBe(counterpartieId);
 });
 
 test('Não deve excluir uma counterpartie vinculada a outra carteira', async () => {
@@ -208,7 +219,7 @@ test('Não deve excluir uma counterpartie vinculada a outra carteira', async () 
   expect(counterpartieWalletA.status).toBe(201);
 
   // Tenta deletar usando outra carteira passada no x-wallet-id (passando walletB)
-  const counterpartieWalletAId = counterpartieWalletA.body.item.id;
+  const counterpartieWalletAId = counterpartieWalletA.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/counterpartie/delete/${counterpartieWalletAId}`)
