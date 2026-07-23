@@ -8,10 +8,6 @@ export default class WalletController {
       const userId = req.user.id;
       const { name } = req.body;
 
-      if (!name || name.trim().length < 3) {
-        return res.status(400).json({ message: 'o nome da carteira é obrigatório e deve ter no mínimo 3 caracteres.' });
-      }
-
       const newWallet = await walletService.walletRegister(userId, name);
 
       return res.status(201).json({
@@ -29,14 +25,6 @@ export default class WalletController {
       const userId = req.user.id;
       const { id } = req.params;
       const { name } = req.body;
-
-      if (!id) {
-        return res.status(400).json({ message: 'Selecione uma carteira para editar.' });
-      }
-
-      if (!name) {
-        return res.status(400).json({ message: 'Preencha o nome para o qual deseja alterar.' });
-      }
 
       const updatedWallet = await walletService.walletUpdateById(userId, id, name);
 
@@ -65,10 +53,6 @@ export default class WalletController {
     try {
       const userId = req.user.id;
       const { id } = req.params;
-
-      if (!id) {
-        return res.status(400).json({ message: 'Selecione um carteira para excluir' });
-      }
 
       const deletedWallet = await walletService.walletDeleteById(userId, id);
 

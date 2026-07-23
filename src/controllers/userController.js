@@ -7,10 +7,6 @@ export default class UserController {
     try {
       const { name, email, password } = req.body;
 
-      if (!name || !email || !password) {
-        return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
-      }
-
       const newUser = await userService.userRegister(name, email, password);
 
       return res.status(201).json({
@@ -31,10 +27,6 @@ export default class UserController {
   userLogin = async (req, res) => {
     try {
       const { email, password } = req.body;
-
-      if (!email || !password) {
-        return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
-      }
 
       const userLoged = await userService.userLogin(email, password);
 
