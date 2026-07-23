@@ -14,13 +14,13 @@ test('Deve cadastrar uma conta bancaria com sucesso', async () => {
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(response.status).toBe(201);
   expect(response.body.item).toHaveProperty('id');
   expect(response.body.item.bank_name).toBe('Nubank');
-  expect(response.body.item.opening_balance).toBe('0');
+  expect(response.body.item.balance).toBe('0');
 });
 
 // Listar todas as contas bancárias da carteira ativa
@@ -34,7 +34,7 @@ test('Deve listar todas as contas bacárias vinculadas a carteira selecionada', 
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta A',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountA.status).toBe(201);
@@ -45,7 +45,7 @@ test('Deve listar todas as contas bacárias vinculadas a carteira selecionada', 
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta B',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountB.status).toBe(201);
@@ -70,7 +70,7 @@ test('Deve filtrar uma conta bancária especifica de acordo com o filtro de nome
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta A',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountA.status).toBe(201);
@@ -81,7 +81,7 @@ test('Deve filtrar uma conta bancária especifica de acordo com o filtro de nome
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta B',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountB.status).toBe(201);
@@ -109,7 +109,7 @@ test('Deve filtrar uma conta bacaria pelo id', async () => {
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta A',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountA.status).toBe(201);
@@ -120,7 +120,7 @@ test('Deve filtrar uma conta bacaria pelo id', async () => {
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Conta B',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(addBankAccountB.status).toBe(201);
@@ -150,7 +150,7 @@ test('Deve atualizar uma conta bancaria com sucesso', async () => {
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -181,7 +181,7 @@ test('Não deve atualizar uma conta bancária registrada em outra carteira', asy
     .set('x-wallet-id', walletB.id)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -212,7 +212,7 @@ test('Deve excluir uma conta bancária com sucesso', async () => {
     .set('x-wallet-id', wallet.id)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(bankAccount.status).toBe(201);
@@ -239,7 +239,7 @@ test('Não deve conseguir excluir uma conta bancária que não estiver vinculada
     .set('x-wallet-id', walletB.id)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 
   expect(bankAccount.status).toBe(201);

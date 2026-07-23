@@ -93,8 +93,6 @@ test('Deve filtrar um pay method especifico pelo campo de display_id', async () 
     .set('x-wallet-id', wallet.id)
     .query({ display_id: payMethodId });
 
-  console.log(filterById);
-
   expect(filterById.status).toBe(200);
   expect(filterById.body.item.display_id).toBe(payMethodId);
 });

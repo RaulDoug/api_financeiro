@@ -68,7 +68,7 @@ CREATE TABLE bank_accounts (
   display_id INT,
   wallet_id UUID NOT NULL,
   bank_name VARCHAR(255) NOT NULL,
-  opening_balance NUMERIC DEFAULT 0,
+  balance NUMERIC DEFAULT 0,
   allow_negative_balance BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_ba_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,

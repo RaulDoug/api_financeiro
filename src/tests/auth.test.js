@@ -9,7 +9,7 @@ test('Deve cadastrar um usuário com sucesso', async () => {
   const response = await request(app).post('/api/auth/register').send({
     name: 'Raul Teste',
     email: 'raul@test.com',
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(response.status).toBe(201);
@@ -25,7 +25,7 @@ test('Não deve cadastrar um usuário com e-mail duplicado', async () => {
   const user1 = await request(app).post('/api/auth/register').send({
     name: 'user1',
     email: 'user1@test.com',
-    password: 'user123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(user1.status).toBe(201);
@@ -34,7 +34,7 @@ test('Não deve cadastrar um usuário com e-mail duplicado', async () => {
   const user2 = await request(app).post('/api/auth/register').send({
     name: 'user2',
     email: 'user1@test.com',
-    password: 'user123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(user2.status).toBe(400);
@@ -51,7 +51,7 @@ test('Não deve cadastrar um usuário se faltar campos obrigatórios', async () 
   });
 
   expect(response.status).toBe(400);
-  expect(response.body.message).toBe('Todos os campos são obrigatórios');
+  expect(response.body.errors[0].message).toBe('Invalid input: expected string, received undefined');
 
   const dbUser = await pool.query('SELECT * FROM users WHERE email = $1', ['raul@test.com']);
   expect(dbUser.rows.length).toBe(0);
@@ -62,7 +62,7 @@ test('Deve realizaro login com sucesso e retornar o token JWT', async () => {
   const userRegister = await request(app).post('/api/auth/register').send({
     name: 'Raul Teste',
     email: 'raul@test.com',
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(userRegister.status).toBe(201);
@@ -70,7 +70,7 @@ test('Deve realizaro login com sucesso e retornar o token JWT', async () => {
 
   const response = await request(app).post('/api/auth/login').send({
     email: 'raul@test.com',
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(response.status).toBe(200);
@@ -85,7 +85,7 @@ test('Não deve realizar o login com senha incorreta', async () => {
   const userRegister = await request(app).post('/api/auth/register').send({
     name: 'Raul Teste',
     email: 'raul@test.com',
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(userRegister.status).toBe(201);
@@ -115,7 +115,7 @@ test('Não deve realizar login se faltar e-mail ou senha', async () => {
   const userRegister = await request(app).post('/api/auth/register').send({
     name: 'Raul Teste',
     email: 'raul@test.com',
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
 
   expect(userRegister.status).toBe(201);
@@ -126,12 +126,13 @@ test('Não deve realizar login se faltar e-mail ou senha', async () => {
   });
 
   expect(responsePass.status).toBe(400);
-  expect(responsePass.body.message).toBe('Todos os campos são obrigatórios');
+  expect(responsePass.body.errors[0].message).toBe('Invalid input: expected string, received undefined');
 
   const responseEmail = await request(app).post('/api/auth/login').send({
-    password: 'senhaDeTeste123',
+    password: 'senhaDeTeste123@',
   });
+  console.log(responseEmail.body);
 
   expect(responseEmail.status).toBe(400);
-  expect(responseEmail.body.message).toBe('Todos os campos são obrigatórios');
+  expect(responseEmail.body.errors[0].message).toBe('Invalid input: expected string, received undefined');
 });

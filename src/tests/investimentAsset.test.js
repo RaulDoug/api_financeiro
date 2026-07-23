@@ -11,12 +11,12 @@ const createBankAccount = async (authHeader, walletId) => {
     .set('x-wallet-id', walletId)
     .send({
       bank_name: 'Nubank',
-      opening_balance: 0,
+      balance: 0,
     });
 };
 
 const createInvestimentAsset = async (authHeader, walletId) => {
-  const bankAccountID = (await createBankAccount(authHeader, walletId)).body.item.id;
+  const bankAccountId = (await createBankAccount(authHeader, walletId)).body.item.id;
 
   return await request(app)
     .post('/api/investiment-asset/register')
@@ -24,12 +24,12 @@ const createInvestimentAsset = async (authHeader, walletId) => {
     .set('x-wallet-id', walletId)
     .send({
       name: 'Caixinha Nubank',
-      bank_account_id: bankAccountID,
+      bank_account_id: bankAccountId,
     });
 };
 
 const createMultiplesInvestimentAssets = async (authHeader, walletId) => {
-  const bankAccountID = (await createBankAccount(authHeader, walletId)).body.item.id;
+  const bankAccountId = (await createBankAccount(authHeader, walletId)).body.item.id;
 
   const itemA = await request(app)
     .post('/api/investiment-asset/register')
@@ -37,7 +37,7 @@ const createMultiplesInvestimentAssets = async (authHeader, walletId) => {
     .set('x-wallet-id', walletId)
     .send({
       name: 'Investimento A',
-      bank_account_id: bankAccountID,
+      bank_account_id: bankAccountId,
     });
 
   const itemB = await request(app)
@@ -46,7 +46,7 @@ const createMultiplesInvestimentAssets = async (authHeader, walletId) => {
     .set('x-wallet-id', walletId)
     .send({
       name: 'Investimento B',
-      bank_account_id: bankAccountID,
+      bank_account_id: bankAccountId,
     });
 
   const response = [itemA, itemB];

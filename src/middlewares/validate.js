@@ -1,3 +1,5 @@
+import { ZodError } from 'zod';
+
 export const validate = (schema) => (req, res, next) => {
   try {
     const parsed = schema.parse({
@@ -6,18 +8,23 @@ export const validate = (schema) => (req, res, next) => {
       params: req.params,
     });
 
-    if (parsed.body) { req.body = parsed.body; }
-    if (parsed.query) { req.query = parsed.query; }
-    if (parsed.params) { req.params = parsed.params; }
+    if (parsed.query) {
+      // Mutar/Atualizar os valores existentes no objeto req.query
+      Object.keys(req.query).forEach(key => delete req.query[key]);
+      Object.assign(req.query, parsed.query);
+    }
 
     next();
   } catch (error) {
-    return res.status(400).json({
-      status: 'fail',
-      errors: error.errors.map(err => ({
-        field: err.path.join('.'),
-        message: err.message,
-      })),
-    });
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        status: 'fail',
+        errors: (error.errors || error.issues).map(err => ({
+          field: err.path.join('.'),
+          message: err.message,
+        })),
+      });
+    }
+    return next(error);
   }
 };

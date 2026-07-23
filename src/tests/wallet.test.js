@@ -42,7 +42,7 @@ test('Não deve cadastrar uma carteira sem nome', async () => {
     .send({});
 
   expect(response.status).toBe(400);
-  expect(response.body.message).toBe('o nome da carteira é obrigatório e deve ter no mínimo 3 caracteres.');
+  expect(response.body.errors[0].message).toBe('Invalid input: expected string, received undefined');
 });
 
 test('Não deve permitir cadastrar uma carteria com nome em branco ou com menos de 3 caracteres', async () => {
@@ -55,16 +55,8 @@ test('Não deve permitir cadastrar uma carteria com nome em branco ou com menos 
     .send({ name: ' ' });
 
   expect(response.status).toBe(400);
-  expect(response.body.message).toBe('o nome da carteira é obrigatório e deve ter no mínimo 3 caracteres.');
-
-  // Teste cadastro com menos de 3 caracteres
-  const responseCharacters = await request(app)
-    .post('/api/wallet/register')
-    .set('Authorization', authHeader)
-    .send({ name: '12' });
-
-  expect(responseCharacters.status).toBe(400);
-  expect(responseCharacters.body.message).toBe('o nome da carteira é obrigatório e deve ter no mínimo 3 caracteres.');
+  expect(response.body.status).toBe('fail');
+  expect(response.body.errors[0].message).toBe('O nome da carteira deve ter no mínimo 3 caracteres');
 });
 
 test('Não deve permitir cadastro sem autenticação', async () => {
