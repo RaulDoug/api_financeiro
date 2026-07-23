@@ -1,6 +1,28 @@
 -- Extensão necessária para UUID e Hash de senha
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+
+-- Função genérica de display_id
+CREATE OR REPLACE FUNCTION set_generic_display_id()
+RETURNS TRIGGER AS $$
+DECLARE
+  max_id INT;
+BEGIN
+  IF NEW.display_id IS NULL THEN
+    EXECUTE format(
+      'SELECT COALESCE(MAX(display_id), 0) FROM %I WHERE wallet_id = $1',
+      TG_TABLE_NAME
+    )
+    INTO max_id
+    USING NEW.wallet_id;
+
+    NEW.display_id := max_id + 1;
+  END IF;
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+
 -------------------------------------------------
 -- Tabela de usuários
 -------------------------------------------------
@@ -42,51 +64,75 @@ CREATE TABLE users_wallets (
 -- Contas bancárias da carteira
 -------------------------------------------------
 CREATE TABLE bank_accounts (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
   wallet_id UUID NOT NULL,
   bank_name VARCHAR(255) NOT NULL,
   opening_balance NUMERIC DEFAULT 0,
   allow_negative_balance BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
-  CONSTRAINT fk_ba_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+  CONSTRAINT fk_ba_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT uq_bank_accounts_wallet_display UNIQUE (wallet_id, display_id)
 );
+
+CREATE TRIGGER trg_bank_accounts_display_id
+BEFORE INSERT ON bank_accounts
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 
 -------------------------------------------------
 -- Categorias (receita ou despesa)
 -------------------------------------------------
 CREATE TYPE categories_type AS ENUM ('incomings', 'expenses');
 CREATE TABLE categories (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
   wallet_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
   type categories_type NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
-  CONSTRAINT fk_c_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+  CONSTRAINT fk_c_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT uq_categories_wallet_display UNIQUE (wallet_id, display_id)  
 );
+
+CREATE TRIGGER trg_categories_display_id
+BEFORE INSERT ON categories
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 
 -------------------------------------------------
 -- Contrapartes (pagador ou recebedor)
 -------------------------------------------------
 CREATE TYPE counterparties_types AS ENUM ('payer', 'payee');
 CREATE TABLE counterparties (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
   wallet_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
   type counterparties_types NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
-  CONSTRAINT fk_couter_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+  CONSTRAINT fk_couter_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT uq_counterparties_wallet_display UNIQUE (wallet_id, display_id)
 );
+
+CREATE TRIGGER trg_counterparties_display_id
+BEFORE INSERT ON counterparties
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 
 -------------------------------------------------
 -- Métodos de pagamento
 -------------------------------------------------
 CREATE TABLE pay_methods (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
   wallet_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
-  CONSTRAINT fk_pm_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+  CONSTRAINT fk_pm_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT uq_pay_methods_wallet_display UNIQUE (wallet_id, display_id)
 );
+
+CREATE TRIGGER trg_pay_methods_display_id
+BEFORE INSERT ON pay_methods
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 
 -------------------------------------------------
 -- Enums das transações
@@ -99,10 +145,10 @@ CREATE TYPE transactions_status AS ENUM ('pending', 'completed', 'cancelled');
 CREATE TABLE transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_id UUID NOT NULL,
-  bank_account_id BIGINT NOT NULL,
-  category_id BIGINT NOT NULL,
-  pay_methods_id BIGINT NOT NULL,
-  counterparty_id BIGINT NOT NULL,
+  bank_account_id UUID NOT NULL,
+  category_id UUID NOT NULL,
+  pay_methods_id UUID NOT NULL,
+  counterparty_id UUID NOT NULL,
   creator_user_id UUID NOT NULL,
   type transactions_type NOT NULL,
   status transactions_status NOT NULL DEFAULT 'pending',
@@ -125,15 +171,21 @@ CREATE TABLE transactions (
 -- Ativos de investimento
 -------------------------------------------------
 CREATE TABLE investment_assets (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
   wallet_id UUID NOT NULL,
-  bank_account_id BIGINT NOT NULL,
+  bank_account_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
   due_date DATE,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_ia_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
-  CONSTRAINT fk_ia_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE
+  CONSTRAINT fk_ia_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE,
+  CONSTRAINT uq_investments_assets_wallet_display UNIQUE (wallet_id, display_id)
 );
+
+CREATE TRIGGER trg_investment_assets_display_id
+BEFORE INSERT ON investment_assets
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 
 -------------------------------------------------
 -- Enums das transações de investimento
@@ -144,7 +196,7 @@ CREATE TYPE investment_transaction_type AS ENUM ('deposit', 'earnings', 'liquida
 -------------------------------------------------
 CREATE TABLE investments_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  investment_asset_id BIGINT NOT NULL,
+  investment_asset_id UUID NOT NULL,
   transaction_type investment_transaction_type NOT NULL,
   value NUMERIC NOT NULL,
   date DATE NOT NULL,

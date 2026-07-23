@@ -64,7 +64,7 @@ test('Deve listar todas as categorias criadas vinculadas a carteira selecionada'
 });
 
 // Listar categorias por filtros
-test('Deve listar as categorias da carteira selecionada de acordo com os filtros', async () => {
+test('Deve listar as categorias da carteira selecionada de acordo com o filtro type', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
@@ -111,6 +111,45 @@ test('Deve listar as categorias da carteira selecionada de acordo com os filtros
 
   expect(categorieType.status).toBe(200);
   expect(categorieType.body.item.type).toBe('incomings');
+});
+
+test('Deve listar as categorias da carteira selecionada de acordo com o filtro name', async () => {
+  const { user, authHeader } = await createAuthenticatedUser();
+  const wallet = await createWallet(user.id);
+
+  // Cadastrando as categorias
+  const categorieA = await request(app)
+    .post('/api/categorie/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Aluguél',
+      type: 'expenses',
+      wallet_id: wallet.id,
+    });
+
+  expect(categorieA.status).toBe(201);
+
+  const categorieB = await request(app)
+    .post('/api/categorie/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Salário',
+      type: 'incomings',
+      wallet_id: wallet.id,
+    });
+
+  expect(categorieB.status).toBe(201);
+
+  // Validar se possui 2 itens na lista
+  const categorieList = await request(app)
+    .get('/api/categorie')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id);
+
+  expect(categorieList.status).toBe(200);
+  expect(categorieList.body.length).toBe(2);
 
   // Listando categoria filtrando pelo campo name
   const categorieName = await request(app)
@@ -118,6 +157,48 @@ test('Deve listar as categorias da carteira selecionada de acordo com os filtros
     .set('Authorization', authHeader)
     .set('x-wallet-id', wallet.id)
     .query({ name: 'Aluguél' });
+
+  expect(categorieName.status).toBe(200);
+  expect(categorieName.body.item.name).toBe('Aluguél');
+});
+
+test('Deve listar as categorias da carteira selecionada de acordo com o filtro display_id', async () => {
+  const { user, authHeader } = await createAuthenticatedUser();
+  const wallet = await createWallet(user.id);
+
+  // Cadastrando as categorias
+  const categorieA = await request(app)
+    .post('/api/categorie/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Aluguél',
+      type: 'expenses',
+      wallet_id: wallet.id,
+    });
+
+  expect(categorieA.status).toBe(201);
+
+  const categorieB = await request(app)
+    .post('/api/categorie/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Salário',
+      type: 'incomings',
+      wallet_id: wallet.id,
+    });
+
+  expect(categorieB.status).toBe(201);
+
+  // Listando categoria filtrando pelo campo display_id
+  const categorieAId = categorieA.body.item.display_id;
+
+  const categorieName = await request(app)
+    .get('/api/categorie')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .query({ display_id: categorieAId });
 
   expect(categorieName.status).toBe(200);
   expect(categorieName.body.item.name).toBe('Aluguél');
@@ -140,7 +221,7 @@ test('Deve atualizar categoria com sucesso', async () => {
 
   expect(categorie.status).toBe(201);
 
-  const categorieId = categorie.body.item.id;
+  const categorieId = categorie.body.item.display_id;
 
   const updatedCategorie = await request(app)
     .patch(`/api/categorie/update/${categorieId}`)
@@ -173,7 +254,7 @@ test('Não deve alterar uma categoria cadastrada vinculada a outra carteria dife
   expect(categorie.status).toBe(201);
 
   // Atualizar passando o ID de outra carteira no header
-  const categorieId = categorie.body.item.id;
+  const categorieId = categorie.body.item.display_id;
 
   const response = await request(app)
     .patch(`/api/categorie/update/${categorieId}`)
@@ -205,7 +286,7 @@ test('Deve excluir uma categoria cadastrada com sucesso', async () => {
   expect(categorie.status).toBe(201);
 
   // Excluir categoria
-  const categorieId = categorie.body.item.id;
+  const categorieId = categorie.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/categorie/delete/${categorieId}`)
@@ -214,7 +295,7 @@ test('Deve excluir uma categoria cadastrada com sucesso', async () => {
 
   expect(response.status).toBe(200);
   expect(response.body.message).toBe('Item excluído com sucesso');
-  expect(response.body.item.id).toBe(categorieId);
+  expect(response.body.item.display_id).toBe(categorieId);
   expect(response.body.item.name).toBe('Aluguél');
 });
 
@@ -238,7 +319,7 @@ test('Não deve permitir excluir categoria de outra carteira', async () => {
   expect(categorieWalletA.status).toBe(201);
 
   // Tenta excluir categoria de outra carteria
-  const categorieId = categorieWalletA.body.item.id;
+  const categorieId = categorieWalletA.body.item.display_id;
 
   const response = await request(app)
     .delete(`/api/categorie/delete/${categorieId}`)

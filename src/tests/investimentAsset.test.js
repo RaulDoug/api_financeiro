@@ -177,11 +177,52 @@ test('Deve listar o investiment asset filtrando pelo campo de due_date', async (
   expect(response.body.item.name).toBe('Investimento B');
 });
 
+test('Deve listar o investiment asset filtrando pelo campo de display_id', async () => {
+  const { user, authHeader } = await createAuthenticatedUser();
+  const wallet = await createWallet(user.id);
+  const bankAccountId = (await createBankAccount(authHeader, wallet.id)).body.item.id;
+
+  const itemA = await request(app)
+    .post('/api/investiment-asset/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Investimento A',
+      bank_account_id: bankAccountId,
+    });
+
+  expect(itemA.status).toBe(201);
+
+  const itemB = await request(app)
+    .post('/api/investiment-asset/register')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .send({
+      name: 'Investimento B',
+      bank_account_id: bankAccountId,
+      due_date: '2027/01/01',
+    });
+
+  expect(itemB.status).toBe(201);
+
+  // Request filtrando pelo campo due_date
+  const itemBId = itemB.body.item.display_id;
+  const response = await request(app)
+    .get('/api/investiment-asset')
+    .set('Authorization', authHeader)
+    .set('x-wallet-id', wallet.id)
+    .query({ display_id: itemBId });
+
+  expect(response.status).toBe(200);
+  expect(response.body.item.display_id).toBe(itemBId);
+  expect(response.body.item.name).toBe('Investimento B');
+});
+
 test('Deve realizar o update com sucesso', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
-  const itemId = (await createInvestimentAsset(authHeader, wallet.id)).body.item.id;
+  const itemId = (await createInvestimentAsset(authHeader, wallet.id)).body.item.display_id;
 
   // Update
   const response = await request(app)
@@ -201,7 +242,7 @@ test('Não deve atualizar um item listado em outra carteira', async () => {
   const walletA = await createWallet(user.id);
   const walletB = await createWallet(user.id);
 
-  const itemIdWalletA = (await createInvestimentAsset(authHeader, walletA.id)).body.item.id;
+  const itemIdWalletA = (await createInvestimentAsset(authHeader, walletA.id)).body.item.display_id;
 
   // Update em item de outra carteira
   const response = await request(app)
@@ -220,7 +261,7 @@ test('Deve excluir um cadastro com sucesso', async () => {
   const { user, authHeader } = await createAuthenticatedUser();
   const wallet = await createWallet(user.id);
 
-  const itemId = (await createInvestimentAsset(authHeader, wallet.id)).body.item.id;
+  const itemId = (await createInvestimentAsset(authHeader, wallet.id)).body.item.display_id;
 
   // Delete
   const response = await request(app)
@@ -237,7 +278,7 @@ test('Não deve excluir um item vinculado a outra carteira', async () => {
   const walletA = await createWallet(user.id);
   const walletB = await createWallet(user.id);
 
-  const itemIdWalletA = (await createInvestimentAsset(authHeader, walletA.id)).body.item.id;
+  const itemIdWalletA = (await createInvestimentAsset(authHeader, walletA.id)).body.item.display_id;
 
   // Delete em item de outra carteira
   const response = await request(app)

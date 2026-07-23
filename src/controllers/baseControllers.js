@@ -13,6 +13,10 @@ export default class BaseController {
         wallet_id: walletId,
       };
 
+      if (queryFilters.display_id) {
+        queryFilters.display_id = Number(queryFilters.display_id);
+      }
+
       if (Object.keys(filters).length > 0) {
         const item = await this.service.findOne(queryFilters);
 
@@ -79,7 +83,7 @@ export default class BaseController {
         return res.status(400).json({ message: 'Todos os campos devem ser preenchidos corretamente' });
       }
 
-      const updatedItem = await this.service.updateById(id, walletId, data);
+      const updatedItem = await this.service.updateById(Number(id), walletId, data);
 
       if (!updatedItem) {
         return res.status(404).json({ message: 'Registro não encontrado ou você não tem permissão para alterá-lo' });
@@ -104,7 +108,7 @@ export default class BaseController {
         return res.status(400).json({ message: 'Campos de id não informados' });
       }
 
-      const deletedItem = await this.service.deleteById(id, walletId);
+      const deletedItem = await this.service.deleteById(Number(id), walletId);
 
       if (!deletedItem) {
         return res.status(404).json({ message: 'Registro não encontrado ou você não tem permissão para alterá-lo' });
