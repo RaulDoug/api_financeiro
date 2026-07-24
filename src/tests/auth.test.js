@@ -131,7 +131,6 @@ test('Não deve realizar login se faltar e-mail ou senha', async () => {
   const responseEmail = await request(app).post('/api/auth/login').send({
     password: 'senhaDeTeste123@',
   });
-  console.log(responseEmail.body);
 
   expect(responseEmail.status).toBe(400);
   expect(responseEmail.body.errors[0].message).toBe('Invalid input: expected string, received undefined');
