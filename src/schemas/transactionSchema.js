@@ -14,7 +14,7 @@ const statusValidation = z.enum(['pending', 'completed', 'cancelled'], {
   invalid_type_error: "Status inválido. Deve ser 'pending', 'completed' ou 'canceled'",
 });
 const valueValidation = z.number().positive('O valor deve ser maior que zero');
-const descriptionValidation = z.string().min(2, 'Deve ser informada uma descrição válida').max(255);
+const descriptionValidation = z.string().min(2, 'A descrição deve conter no mínimo 3 caracteres').max(255);
 const dueDateValidation = z.coerce.date({ invalid_type_error: 'Data inválida' });
 const paymentDateValidation = z.coerce.date({ invalid_type_error: 'Data inválida' }).optional();
 

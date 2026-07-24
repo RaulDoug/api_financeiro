@@ -4,4 +4,8 @@ export default class TransactionServices extends BaseServices {
   constructor() {
     super('transactions');
   }
+
+  async create(data) {
+
+  }
 }
