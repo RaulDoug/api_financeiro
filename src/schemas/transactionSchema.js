@@ -22,15 +22,17 @@ const paymentDateValidation = z.coerce.date({ invalid_type_error: 'Data inválid
 
 export const createSchema = z.object({
   body: z.body({
+    wallet_id: walletIdValidation,
     bank_account_id: bankAccountIdValidation,
     category_id: categorieIdValidation,
     pay_methods_id: payMethodIdValidation,
     counterparty_id: counterpartyIdValidation,
+    creator_user_id: creatorUserIdValidation,
     type: typeValidation,
     status: statusValidation,
     value: valueValidation,
     description: descriptionValidation,
     due_date: dueDateValidation,
-    payment_date: payMethodIdValidation.optional(),
+    payment_date: paymentDateValidation.optional(),
   }),
 });

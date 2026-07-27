@@ -28,6 +28,15 @@ describe('TransactionServices - create()', () => {
         balance: 100,
       });
 
+    const createBankAccountTransferDestiny = await request(app)
+      .post('/api/bank-account/register')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', wallet.id)
+      .send({
+        bank_name: 'Banco de transferência',
+        balance: 100,
+      });
+
     const createPayMethod = await request(app)
       .post('/api/pay-method/register')
       .set('Authorization', authHeader)
@@ -77,6 +86,7 @@ describe('TransactionServices - create()', () => {
       walletId: wallet.id,
       creatorUserId: creatorUserId,
       bankAccountId: createBankAccount.body.item.id,
+      bankAccountDestinyId: createBankAccountTransferDestiny.body.item.id,
       payMethodId: createPayMethod.body.item.id,
       categorieExpenseId: createCategorieExpense.body.item.id,
       categorieIncomeId: createCategorieIncome.body.item.id,
@@ -136,6 +146,7 @@ describe('TransactionServices - create()', () => {
         wallet_id: testData.walletId,
         creator_user_id: testData.creatorUserId,
         bank_account_id: testData.bankAccountId,
+        destiny_bank_account_id: testData.bankAccountDestinyId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,
@@ -148,9 +159,12 @@ describe('TransactionServices - create()', () => {
 
       const result = await transactionService.create(payload);
 
-      expect(result).toHaveProperty('id');
-      expect(result.status).toBe('pending');
-      expect(result.transfers_id).toBeDefined();
+      expect(result.rows[0]).toHaveProperty('id');
+      expect(result.rows[1]).toHaveProperty('id');
+      expect(result.rows[0].status).toBe('pending');
+      expect(result.rows[1].status).toBe('pending');
+      expect(result.rows[0].transfers_id).toBeDefined();
+      expect(result.rows[1].transfers_id).toBeDefined();
     });
   });
 
