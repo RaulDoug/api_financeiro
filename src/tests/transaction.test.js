@@ -4,10 +4,7 @@ import app from '../app.js';
 import pool from '../config/db.js';
 import { createAuthenticatedUser, createWallet } from './testUtils.js';
 import TransactionServices from '../services/transactionServices.js';
-
-
-
-
+import { createSchema } from '../schemas/transactionSchema.js';
 
 describe('TransactionServices - create()', () => {
   // Configurações de variáveis e beforeEach create()
@@ -159,12 +156,13 @@ describe('TransactionServices - create()', () => {
 
       const result = await transactionService.create(payload);
 
-      expect(result.rows[0]).toHaveProperty('id');
-      expect(result.rows[1]).toHaveProperty('id');
-      expect(result.rows[0].status).toBe('pending');
-      expect(result.rows[1].status).toBe('pending');
-      expect(result.rows[0].transfers_id).toBeDefined();
-      expect(result.rows[1].transfers_id).toBeDefined();
+      expect(result.expenseRow).toHaveProperty('id');
+      expect(result.incomingRow).toHaveProperty('id');
+      expect(result.expenseRow.status).toBe('pending');
+      expect(result.incomingRow.status).toBe('pending');
+      expect(result.expenseRow.transfers_id).toBeDefined();
+      expect(result.incomingRow.transfers_id).toBeDefined();
+      expect(result.expenseRow.transfers_id).toBe(result.incomingRow.transfers_id);
     });
   });
 
@@ -184,8 +182,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      await expect(transactionService.create(payload))
-        .rejects
+      expect(() => createSchema.parse(payload))
         .toThrow('A descrição deve conter no mínimo 3 caracteres');
     });
 
@@ -204,8 +201,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      await expect(transactionService.create(payload))
-        .rejects
+      expect(() => createSchema.parse(payload))
         .toThrow('O valor deve ser maior que zero');
     });
 
@@ -224,8 +220,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      await expect(transactionService.create(payload))
-        .rejects
+      expect(() => createSchema.parse(payload))
         .toThrow("Tipo inválido. Deve ser 'incomings', 'expenses' ou 'transfers'");
     });
 
@@ -244,8 +239,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      await expect(transactionService.create(payload))
-        .rejects
+      expect(() => createSchema.parse(payload))
         .toThrow("Status inválido. Deve ser 'pending', 'completed' ou 'canceled'");
     });
 
@@ -263,12 +257,30 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      const result = await transactionService.create(payload);
-
-      expect(result.rejects).toThrow('ID da conta bancária inválido');
+      expect(() => createSchema.parse(payload))
+        .toThrow('ID da conta bancária é obrigatório');
     });
 
-    test('Deve rejeitar transação pendente (pending) que receba uma payment_date', async () => {
+    test('Deve rejeitar transação concluída (completed) sem (bank_account_id) for inválido', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: '123',
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        status: 'pending',
+        value: 100.00,
+        description: 'Salário',
+        due_date: '2026-08-10',
+      };
+
+      expect(() => createSchema.parse(payload))
+        .toThrow('ID da conta bancária inválido');
+    });
+
+    test('Deve rejeitar transação que receba uma payment_date inválido', async () => {
       const payload = {
         wallet_id: testData.walletId,
         creator_user_id: testData.creatorUserId,
@@ -281,12 +293,31 @@ describe('TransactionServices - create()', () => {
         value: 100.00,
         description: 'Salário',
         due_date: '2026-08-10',
-        payment_date: '2026-07-24',
+        payment_date: 'DATA INVÁLIDA',
       };
 
-      const result = await transactionService.create(payload);
+      expect(() => createSchema.parse(payload))
+        .toThrow('Data inválida');
+    });
 
-      expect(result.rejects).toThrow('Data de pagamento só pode ser atribuida a contas com status competo');
+    test('Deve rejeitar transação que receba uma payment_date maior que a data atual', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        status: 'pending',
+        value: 100.00,
+        description: 'Salário',
+        due_date: '2026-08-10',
+        payment_date: '2100-08-10',
+      };
+
+      expect(() => createSchema.parse(payload))
+        .toThrow('A data de pagamento não pode ser uma data futura');
     });
   });
 
@@ -320,9 +351,9 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      const result = await transactionService.create(payload);
-
-      expect(result.error).toBe('Conta bancária informado não pertece a carteira selecionada');
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Conta bancária não foi encontrada ou não pertence a esta carteira.');
     });
 
     test('Deve rejeitar transação se a categoria não pertencer à mesma wallet_id', async () => {
@@ -354,9 +385,9 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      const result = await transactionService.create(payload);
-
-      expect(result.error).toBe('Categoria informada não pertece a carteira selecionada');
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Categoria não foi encontrada ou não pertence a esta carteira.');
     });
 
     test('Deve rejeitar transferência onde a conta bancária de origem é igual à de destino', async () => {
@@ -368,16 +399,16 @@ describe('TransactionServices - create()', () => {
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,
-        type: 'incomings',
+        type: 'transfers',
         status: 'pending',
         value: 100.00,
         description: 'Salário',
         due_date: '2026-08-10',
       };
 
-      const result = await transactionService.create(payload);
-
-      expect(result.error).toBe('Conta bancária de destino não pode ser a mesma da conta de origem');
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Conta bancária de destino não pode ser a mesma da conta de origem');
     });
   });
 
@@ -408,9 +439,9 @@ describe('TransactionServices - create()', () => {
         description: 'Conta',
       };
 
-      const result = await transactionService.create(payload);
-
-      expect(result.error).toBe('Saldo insuficiente para realizara transação');
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Conta bancária com saldo insuficente para realizar a transação');
     });
 
     test('Deve permitir uma saída (expense) em conta que permite saldo negativo mesmo com saldo insuficiente', async () => {
@@ -513,6 +544,33 @@ describe('TransactionServices - create()', () => {
       const updatedBalance = Number(balanceBankAccount.rows[0].balance);
 
       expect(updatedBalance).toBe(50.00);
+    });
+  });
+
+  describe('Regras de valiadção de payment_date', () => {
+    test('Deve ser lançada como pletede quando uma transação pendente é lançada com a data de pagamento com a data atual', async () => {
+      const today = new Date();
+      console.log(today);
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        status: 'pending',
+        value: 100.00,
+        description: 'Salário',
+        due_date: '2026-08-10',
+        payment_date: today,
+      };
+
+      const result = await transactionService.create(payload);
+
+      expect(result).toHaveProperty('id');
+      expect(result.status).toBe('completed');
     });
   });
 });

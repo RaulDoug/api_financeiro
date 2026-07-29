@@ -7,23 +7,24 @@ export default class TransactionServices extends BaseServices {
     super('transactions');
   }
 
+  // Função responsável por criar uma transação e suas regras de negocio
   async create(data) {
-    const dataValues = data;
-
+    // Validação do usuário do criador da transação
     const creatorUserValidate = await pool.query(
       'SELECT user_id, wallet_id, role FROM users_wallets WHERE user_id = $1 AND wallet_id = $2 AND role != $3',
-      [dataValues.creator_user_id, dataValues.wallet_id, 'viewer'],
+      [data.creator_user_id, data.wallet_id, 'viewer'],
     );
 
     if (creatorUserValidate.rows.length === 0) {
       throw new Error('Usário sem permissão ou não vinculado a carteira');
     }
 
+    // Array de objetos para validar as FKs e a validação em sé feita com for of
     const fksToValidate = [
-      { table: 'bank_accounts', id: dataValues.bank_account_id, label: 'Conta bancária' },
-      { table: 'categories', id: dataValues.category_id, label: 'Categoria' },
-      { table: 'pay_methods', id: dataValues.pay_methods_id, label: 'Método de pagamento' },
-      { table: 'counterparties', id: dataValues.counterparty_id, label: 'Contraparte' },
+      { table: 'bank_accounts', id: data.bank_account_id, label: 'Conta bancária' },
+      { table: 'categories', id: data.category_id, label: 'Categoria' },
+      { table: 'pay_methods', id: data.pay_methods_id, label: 'Método de pagamento' },
+      { table: 'counterparties', id: data.counterparty_id, label: 'Contraparte' },
     ];
 
     for (const item of fksToValidate) {
@@ -33,7 +34,7 @@ export default class TransactionServices extends BaseServices {
 
       const resulta = await pool.query(
         `SELECT id FROM "${item.table}" WHERE id = $1 AND wallet_id = $2`,
-        [item.id, dataValues.wallet_id],
+        [item.id, data.wallet_id],
       );
 
       if (resulta.rows.length === 0) {
@@ -41,63 +42,65 @@ export default class TransactionServices extends BaseServices {
       }
     }
 
+    if (data.payment_date) {
+      data.status = 'completed';
+    }
+
     // Lançamento de transação
     let payload = {
-      ...dataValues,
-    };
-    let paymentDate;
-    let dueDate;
-    let query;
+      ...data,
+    }; // Armazena o payload para conseguir acrescentrar propriedades
+    let paymentDate; // Armazena o valor de data de pagamento
+    let dueDate; // Armazena o valor de data de vencimento
+    let query; // Armazena a query para rodar
 
+    // Função responsável por montar o payload (É chamada dentro das validações e a propriedade é passada de acordo com retorno da validação)
     function buildPayload(bankAccountId) {
       // Lançamento de transação completa
-      if (dataValues.status === 'completed') {
-        if (!dataValues.payment_date) {
-          paymentDate = new Date();
-        }
+      if (data.status === 'completed') {
+        paymentDate = data.payment_date || new Date();
 
-        if (!dataValues.due_date) {
-          dueDate = new Date();
-        }
+        dueDate = data.due_date || new Date();
 
         return payload = {
-          wallet_id: dataValues.wallet_id,
-          creator_user_id: dataValues.creator_user_id,
+          wallet_id: data.wallet_id,
+          creator_user_id: data.creator_user_id,
           bank_account_id: bankAccountId,
-          category_id: dataValues.category_id,
-          pay_methods_id: dataValues.pay_methods_id,
-          counterparty_id: dataValues.counterparty_id,
-          type: dataValues.type,
-          status: dataValues.status,
-          value: dataValues.value,
-          description: dataValues.description,
+          category_id: data.category_id,
+          pay_methods_id: data.pay_methods_id,
+          counterparty_id: data.counterparty_id,
+          type: data.type,
+          status: data.status,
+          value: data.value,
+          description: data.description,
           due_date: dueDate,
           payment_date: paymentDate,
         };
       }
 
       // Lançamento transação pendente
-      if (dataValues.status === 'pending') {
-        if (!dataValues.due_date) {
+      if (data.status === 'pending') {
+        if (!data.due_date) {
           throw new Error('É obrigatório informar uma data de pagamento');
         }
 
         return payload = {
-          wallet_id: dataValues.wallet_id,
-          creator_user_id: dataValues.creator_user_id,
+          wallet_id: data.wallet_id,
+          creator_user_id: data.creator_user_id,
           bank_account_id: bankAccountId,
-          category_id: dataValues.category_id,
-          pay_methods_id: dataValues.pay_methods_id,
-          counterparty_id: dataValues.counterparty_id,
-          type: dataValues.type,
-          status: dataValues.status,
-          value: dataValues.value,
-          description: dataValues.description,
-          due_date: dataValues.due_date,
+          category_id: data.category_id,
+          pay_methods_id: data.pay_methods_id,
+          counterparty_id: data.counterparty_id,
+          type: data.type,
+          status: data.status,
+          value: data.value,
+          description: data.description,
+          due_date: data.due_date,
         };
       }
     };
 
+    // Função para montar a query para rodar no banco
     function createQuery(payload) {
       const values = Object.values(payload);
       const keys = Object.keys(payload);
@@ -110,107 +113,129 @@ export default class TransactionServices extends BaseServices {
       };
     }
 
-    const value = dataValues.value;
+    const value = Number(data.value); // Armazena o valor da transação
+    // Validação da conta bancária, confirma o valor em conta e se permite ser negativo ou não.
     const bankAccount = await pool.query(
       'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1',
-      [dataValues.bank_account_id],
+      [data.bank_account_id],
     );
 
-    if (dataValues.type === 'expenses') {
-      const newBalance = Number(bankAccount.rows[0].balance - value);
+    // Lançamento de despesas.
+    if (data.type === 'expenses') {
+      const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
 
       if (!bankAccount.rows[0].allow_negative_balance && newBalance < 0) {
         throw new Error('Conta bancária com saldo insuficente para realizar a transação');
       }
 
-      if (dataValues.status === 'completed') {
+      // Validação se a despesa tem o status de completed ou não.
+      if (data.status === 'completed') {
         await pool.query(
           'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
-          [newBalance, dataValues.bank_account_id],
+          [newBalance, data.bank_account_id],
         );
       }
 
-      payload = buildPayload(dataValues.bank_account_id);
+      const today = new Date();
+
+      if (data.payment_date === today) {
+
+      }
+
+      payload = buildPayload(data.bank_account_id);
     }
 
-    // Lançamento de entradas
-    if (dataValues.type === 'incomings') {
-      const newBalance = Number(bankAccount.rows[0].balance + value);
+    // Lançamento de entradas.
+    if (data.type === 'incomings') {
+      const newBalance = Number(bankAccount.rows[0].balance) + Number(value);
 
-      if (dataValues.status === 'completed') {
+      // Validação se a entrada tem o status de completed ou não.
+      if (data.status === 'completed') {
         await pool.query(
           'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
-          [newBalance, dataValues.bank_account_id],
+          [newBalance, data.bank_account_id],
         );
       };
 
-      payload = buildPayload(dataValues.bank_account_id);
+      payload = buildPayload(data.bank_account_id);
     }
 
     // Lançamento de transferência
-    if (dataValues.type === 'transfers') {
-      const transferId = crypto.randomUUID();
-      const bankAccountOut = dataValues.bank_account_id;
+    if (data.type === 'transfers') {
+      const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
+      const bankAccountOut = data.bank_account_id; // Armazena a conta bancária de onde vai sair o valor
+      // Valida o valor em conta e se permite ser negativo na conta que irá sair o valor da transferência
       const bankAccountOutBalance = await pool.query(
         'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1',
         [bankAccountOut],
       );
-      const bankAccountDestiny = dataValues.destiny_bank_account_id;
+      const bankAccountDestiny = data.destiny_bank_account_id; // Armazena a conta bancária que vai receber a transferência
+      // Pega o valor em conta da conta de destino
       const bankAccountDestinyBalance = await pool.query(
         'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1',
         [bankAccountDestiny],
       );
 
+      // Validação se a conta bancária de destino foi passada nos parâmetros
       if (!bankAccountDestiny) {
         throw new Error('Nenhuma conta selecionada para receber a transferência');
       }
 
+      // Validação para confirmar se a conta de origem e conta de destino não são as mesmas
       if (bankAccountOut === bankAccountDestiny) {
         throw new Error('Conta bancária de destino não pode ser a mesma da conta de origem');
       }
 
+      // Valida se a conta bancária de destino existe no banco de dados
       const destinyBankAccountValidate = await pool.query(
         'SELECT id, wallet_id FROM bank_accounts WHERE id = $1 AND wallet_id = $2',
-        [bankAccountDestiny, dataValues.wallet_id],
+        [bankAccountDestiny, data.wallet_id],
       );
 
       if (destinyBankAccountValidate.rows.length === 0) {
         throw new Error('Conta inexistente ou não pertencente a carteira selecionada');
       }
 
-      if (dataValues.status === 'completed') {
-        const expenseTransactionPayload = buildPayload(bankAccountOut);
+      // Lançamento de transferência completa
+      if (data.status === 'completed') {
+        const expenseTransactionPayload = buildPayload(bankAccountOut); // Cria o payload passando a conta de saída como bank_account_id
+        // Adiciona o id de transferência no payload da conta de saída
         const expensePayloadWithId = {
           ...expenseTransactionPayload,
           transfers_id: transferId,
         };
-        const expenseAccountNewBalance = Number(bankAccountOutBalance.rows[0].balance - value);
+        const expenseAccountNewBalance = Number(bankAccountOutBalance.rows[0].balance) - Number(value); // Calcula o novo valor da conta de origem
+        // Valida se a conta permite valor negativo ou se não permitir valida se tem saldo suficiente
         if (!bankAccountOutBalance.rows[0].allow_negative_balance && expenseAccountNewBalance < 0) {
           throw new Error('Conta bancária com saldo insuficente para realizar a transação');
         }
+        // Atualiza o saldo da conta de saída.
         await pool.query(
           'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
           [expenseAccountNewBalance, bankAccountOut],
         );
-        const expenseQuery = createQuery(expensePayloadWithId);
-        const expenseResult = await pool.query(expenseQuery);
-        const expenseRow = expenseResult.rows[0];
+        const expenseQuery = createQuery(expensePayloadWithId); // Monta a query para a transação de saída da transferência
+        const expenseResult = await pool.query(expenseQuery); // Roda a query da transação de saída da transferência
+        const expenseRow = expenseResult.rows[0]; // Retorno da transação no banco de dados
 
 
-        const incomingTransactionPayload = buildPayload(bankAccountDestiny);
+        const incomingTransactionPayload = buildPayload(bankAccountDestiny); // Cria o payload passando a conta de entrada como bank_account_id
+        // Adiciona o id de transferência no payload da conta de entrada
         const incomingPayloadWithId = {
           ...incomingTransactionPayload,
           transfers_id: transferId,
         };
-        const incomingAccountNewBalance = Number(bankAccountDestinyBalance.rows[0].balance + value);
+        const incomingAccountNewBalance = Number(bankAccountDestinyBalance.rows[0].balance) + Number(value); // Calcula o novo valor da conta de destino
+        // Atualiza o saldo da conta de saída.
         await pool.query(
           'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
           [incomingAccountNewBalance, bankAccountDestiny],
         );
-        const incomingQuery = createQuery(incomingPayloadWithId);
-        const incomingResult = await pool.query(incomingQuery);
-        const incomingRow = incomingResult.rows[0];
+        const incomingQuery = createQuery(incomingPayloadWithId); // Monta a query para a transação de entrada da transferência
+        const incomingResult = await pool.query(incomingQuery); // Roda a query da transação de entrada da transferência
+        const incomingRow = incomingResult.rows[0]; // Retorno da transação no banco de dados
 
+        // objeto com as duas transações retornadas do banco de dados
         const transactionsRows = {
           expenseRow,
           incomingRow,
@@ -219,7 +244,8 @@ export default class TransactionServices extends BaseServices {
         return transactionsRows;
       }
 
-      if (dataValues.status === 'pending') {
+      // Lançamento de transferência pendente
+      if (data.status === 'pending') {
         const expenseTransactionPayload = buildPayload(bankAccountOut);
         const expensePayloadWithId = {
           ...expenseTransactionPayload,
