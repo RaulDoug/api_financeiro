@@ -548,7 +548,7 @@ describe('TransactionServices - create()', () => {
   });
 
   describe('Regras de valiadção de payment_date', () => {
-    test('Deve ser lançada como pletede quando uma transação pendente é lançada com a data de pagamento com a data atual', async () => {
+    test('Deve ser lançada como completed quando uma transação pendente é lançada com a data de pagamento com a data atual', async () => {
       const today = new Date();
       console.log(today);
 

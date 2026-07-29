@@ -124,9 +124,14 @@ CREATE TABLE pay_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   display_id INT,
   wallet_id UUID NOT NULL,
+  bank_account_id UUID,
   name VARCHAR(255) NOT NULL,
+  credit_card BOOLEAN NOT NULL DEFAULT false,
+  due_day INTEGER,
+  closing_day INTEGER,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_pm_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pm_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE,
   CONSTRAINT uq_pay_methods_wallet_display UNIQUE (wallet_id, display_id)
 );
 
@@ -158,6 +163,7 @@ CREATE TABLE transactions (
   payment_date DATE,
   installments_group_id UUID DEFAULT gen_random_uuid(),
   transfers_id UUID DEFAULT gen_random_uuid(),
+  invoice_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT fk_t_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE SET NULL,
