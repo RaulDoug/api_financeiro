@@ -1,6 +1,9 @@
 import pg from 'pg';
 const { Pool } = pg;
 
+
+pg.types.setTypeParser(1700, (val) => parseFloat(val));
+
 const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,

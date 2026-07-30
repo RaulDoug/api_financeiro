@@ -42,6 +42,11 @@ export default class TransactionServices extends BaseServices {
       }
     }
 
+    const payMethodValues = await pool.query(
+      'SELECT * FROM pay_methods WHERE id = $1',
+      [data.pay_methods_id],
+    );
+
     if (data.payment_date) {
       data.status = 'completed';
     }
@@ -53,6 +58,15 @@ export default class TransactionServices extends BaseServices {
     let paymentDate; // Armazena o valor de data de pagamento
     let dueDate; // Armazena o valor de data de vencimento
     let query; // Armazena a query para rodar
+
+    // Data atual para validação
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+
+    // Validando se foi prenchido o dia da compra
+    if (!data.purchase_date) { data.purchase_date = `${year}-${month}-${day}`; }
 
     // Função responsável por montar o payload (É chamada dentro das validações e a propriedade é passada de acordo com retorno da validação)
     function buildPayload(bankAccountId) {
@@ -75,6 +89,7 @@ export default class TransactionServices extends BaseServices {
           description: data.description,
           due_date: dueDate,
           payment_date: paymentDate,
+          purchase_date: data.purchase_date,
         };
       }
 
@@ -96,6 +111,7 @@ export default class TransactionServices extends BaseServices {
           value: data.value,
           description: data.description,
           due_date: data.due_date,
+          purchase_date: data.purchase_date,
         };
       }
     };
@@ -124,6 +140,10 @@ export default class TransactionServices extends BaseServices {
     if (data.type === 'expenses') {
       const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
 
+      if (!data.due_date && payMethodValues.rows[0].credit_card === false) {
+        throw new Error('Os campos de data da transação e data de vencimento são obrigatórios');
+      }
+
       if (!bankAccount.rows[0].allow_negative_balance && newBalance < 0) {
         throw new Error('Conta bancária com saldo insuficente para realizar a transação');
       }
@@ -136,18 +156,130 @@ export default class TransactionServices extends BaseServices {
         );
       }
 
-      const today = new Date();
-
-      if (data.payment_date === today) {
-
-      }
-
       payload = buildPayload(data.bank_account_id);
     }
+
+    // Lançamento de despesas com a forma de pagamento definida como credit_card
+    if (payMethodValues.rows[0].credit_card === true) {
+      data.status = 'pending';
+
+      if (!data.due_date) {
+        data.due_date = new Date();
+      }
+
+      // Dia de vencimento da fatura do cartão
+      const payMethodDueDay = payMethodValues.rows[0].due_day;
+      // Dia de fechamento da fatura
+      const payMethodClosingDay = payMethodValues.rows[0].closing_day;
+
+      // Data de pagamento | Deve receber uma data no formato YYYY-MM-DD
+      const [purchaseYear, purchaseMonth, purchaseDay] = data.purchase_date.split('-');
+
+      let invoiceYear = purchaseYear;
+      let invoiceMonth = Number(purchaseMonth) + 1;
+
+      // Validando se a compra foi feita antes do fechamento da fatura
+      if (purchaseDay < payMethodClosingDay && purchaseMonth === month) {
+        invoiceMonth = purchaseMonth;
+      }
+
+      if (purchaseMonth === '12') {
+        invoiceYear = Number(purchaseYear) + 1;
+        invoiceMonth = 1;
+      }
+
+      const invoiceDate = `${invoiceYear}/${String(invoiceMonth).padStart(2, '0')}`;
+      const invoiceId = `${data.pay_methods_id}_${invoiceDate}`;
+
+      let invoiceIdToUse;
+
+      // Validação de número de parcelas menor que 0
+      if (data.installments_number < 0) {
+        throw new Error('O número de parcelas não pode ser menor que 1');
+      }
+
+      // Lançamento de expense de credit_card parcelado
+      if (data.installments_number > 1) {
+        const installmentGroupId = crypto.randomUUID();
+        const installmentValue = (data.value / data.installments_number).toFixed(2);
+
+        const result = [];
+
+        for (let i = 0; i < data.installments_number; i++) {
+          let targetMonth = Number(invoiceMonth) + i;
+          let targetYear = Number(invoiceYear) + Math.floor((targetMonth - 1) / 12);
+          targetMonth = ((targetMonth - 1) % 12) + 1;
+
+          const formattedMonth = String(targetMonth).padStart(2, '0');
+          const formattedDuaDay = String(payMethodDueDay).padStart(2, '0');
+
+          const currentInvoiceDate = `${targetYear}/${formattedMonth}`;
+          const currentInvoiceId = `${data.pay_methods_id}_${currentInvoiceDate}`;
+          const currentDueDate = `${targetYear}-${formattedMonth}-${formattedDuaDay}`;
+          const currentInstallment = i + 1;
+
+          const invoiceIdQuery = await pool.query(
+            'SELECT invoice_id FROM transactions WHERE invoice_id = $1',
+            [currentInvoiceId],
+          );
+
+          if (invoiceIdQuery.rows.length === 0) {
+            invoiceIdToUse = currentInvoiceId;
+          } else {
+            invoiceIdToUse = invoiceIdQuery.rows[0].invoice_id;
+          }
+
+          const creditCardTransactionPayload = buildPayload(data.bank_account_id);
+
+          payload = {
+            ...creditCardTransactionPayload,
+            installments_group_id: installmentGroupId,
+            invoice_id: invoiceIdToUse,
+            value: installmentValue,
+            due_date: currentDueDate,
+            current_installment: currentInstallment,
+          };
+
+          const installmentQuery = createQuery(payload);
+          const installmentResult = await pool.query(installmentQuery);
+
+          // Adiciona a parcela no array de resultados
+          result.push(installmentResult.rows[0]);
+        }
+
+        return { rows: result };
+      }
+
+      const invoiceIdQuery = await pool.query(
+        'SELECT invoice_id FROM transactions WHERE invoice_id = $1',
+        [invoiceId],
+      );
+
+      if (invoiceIdQuery.rows.length === 0) {
+        invoiceIdToUse = invoiceId;
+      } else {
+        invoiceIdToUse = invoiceIdQuery.rows[0].invoice_id;
+      }
+
+      const newDueDate = `${invoiceYear}-${invoiceMonth}-${payMethodDueDay}`;
+      data.due_date = newDueDate;
+
+      const payloadCreditCard = buildPayload(data.bank_account_id);
+
+      payload = {
+        ...payloadCreditCard,
+        invoice_id: invoiceIdToUse,
+      };
+
+    };
 
     // Lançamento de entradas.
     if (data.type === 'incomings') {
       const newBalance = Number(bankAccount.rows[0].balance) + Number(value);
+
+      if (payMethodValues.rows[0].credit_card === true) {
+        throw new Error('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito');
+      }
 
       // Validação se a entrada tem o status de completed ou não.
       if (data.status === 'completed') {
@@ -271,8 +403,6 @@ export default class TransactionServices extends BaseServices {
 
         return transactionsRows;
       }
-
-
     }
 
     query = createQuery(payload);
@@ -281,4 +411,4 @@ export default class TransactionServices extends BaseServices {
 
     return result.rows[0];
   };
-}
+};
