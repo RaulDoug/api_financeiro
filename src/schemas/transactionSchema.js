@@ -13,8 +13,8 @@ const creatorUserIdValidation = z.string().uuid('ID da criador inválido');
 const typeValidation = z.enum(['incomings', 'expenses', 'transfers'], {
   message: "Tipo inválido. Deve ser 'incomings', 'expenses' ou 'transfers'",
 });
-const statusValidation = z.enum(['pending', 'completed', 'cancelled'], {
-  message: "Status inválido. Deve ser 'pending', 'completed' ou 'canceled'",
+const statusValidation = z.enum(['pending', 'completed', 'cancelled', 'expired'], {
+  message: "Status inválido. Deve ser 'pending', 'completed', 'canceled' ou 'expired'",
 });
 const valueValidation = z.number().positive('O valor deve ser maior que zero');
 const descriptionValidation = z.string().min(3, 'A descrição deve conter no mínimo 3 caracteres').max(255);

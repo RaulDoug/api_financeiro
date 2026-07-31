@@ -143,7 +143,7 @@ FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();
 -- Enums das transações
 -------------------------------------------------
 CREATE TYPE transactions_type AS ENUM ('incomings', 'expenses', 'transfers');
-CREATE TYPE transactions_status AS ENUM ('pending', 'completed', 'cancelled');
+CREATE TYPE transactions_status AS ENUM ('pending', 'completed', 'cancelled', 'expired');
 -------------------------------------------------
 -- Tabela de transações
 -------------------------------------------------
