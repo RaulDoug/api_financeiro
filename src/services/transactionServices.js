@@ -95,7 +95,7 @@ export default class TransactionServices extends BaseServices {
 
       // Lançamento transação pendente
       if (data.status === 'pending') {
-        if (!data.due_date) {
+        if (!data.due_date && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
           throw new Error('É obrigatório informar uma data de pagamento');
         }
 
@@ -136,11 +136,15 @@ export default class TransactionServices extends BaseServices {
       [data.bank_account_id],
     );
 
+    if (!data.is_recurrent) {
+      data.is_recurrent = false;
+    }
+
     // Lançamento de despesas.
-    if (data.type === 'expenses') {
+    if (data.type === 'expenses' && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
       const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
 
-      if (!data.due_date && payMethodValues.rows[0].credit_card === false) {
+      if (!data.due_date) {
         throw new Error('Os campos de data da transação e data de vencimento são obrigatórios');
       }
 
@@ -161,8 +165,9 @@ export default class TransactionServices extends BaseServices {
 
     // Lançamento de despesas com a forma de pagamento definida como credit_card
     if (payMethodValues.rows[0].credit_card === true) {
-      data.status = 'pending';
+      data.status = 'pending'; // Definie o status para pendente
 
+      // Se não foi definido um due_date define a data atual
       if (!data.due_date) {
         data.due_date = new Date();
       }
@@ -201,7 +206,11 @@ export default class TransactionServices extends BaseServices {
       // Lançamento de expense de credit_card parcelado
       if (data.installments_number > 1) {
         const installmentGroupId = crypto.randomUUID();
-        const installmentValue = (data.value / data.installments_number).toFixed(2);
+
+        let installmentValue = data.value;
+        if (data.is_recurrent === false || !data.is_recurrent) {
+          installmentValue = (data.value / data.installments_number).toFixed(2);
+        }
 
         const result = [];
 
@@ -272,6 +281,75 @@ export default class TransactionServices extends BaseServices {
       };
 
     };
+
+    // Lançamento de despesa definida como recorrente
+    if (data.is_recurrent === true) {
+      if (!data.installments_number || !data.due_day) {
+        throw new Error('Em uma transação recorrente os campos de installments_number e due_day são obrigatórios');
+      }
+
+      if (data.installments_number < 2) {
+        throw new Error('O valor de installments_number não pode ser menor que 2 em trasações definidas como recorrente');
+      }
+
+      data.status = 'pending'; // Define como pendente a transação
+
+      const [purchaseYear, purchaseMonth, purchaseDay] = data.purchase_date.split('-');
+
+      if (!data.due_day) {
+        data.due_day = purchaseDay;
+      }
+
+      let firstMonth = Number(purchaseMonth) + 1;
+      if (data.first_this_month === true) {
+        firstMonth = Number(purchaseMonth);
+      }
+
+      const result = [];
+
+      const installmentGroupId = crypto.randomUUID();
+
+      for (let i = 0; i < data.installments_number; i++) {
+        let targetMonth = Number(firstMonth) + i;
+        let targetYear = Number(purchaseYear) + Math.floor((targetMonth - 1) / 12);
+        targetMonth = ((targetMonth - 1) % 12) + 1;
+
+        const formattedMonth = String(targetMonth).padStart(2, '0');
+        const formattedDuaDay = String(data.due_day).padStart(2, '0');
+        const currentDueDate = `${targetYear}-${formattedMonth}-${formattedDuaDay}`;
+        const currentInstallment = i + 1;
+
+        const recorrentTransactionPayload = buildPayload(data.bank_account_id);
+
+        let itemStatus = 'pending';
+        if (i === 0 && data.first_this_month === true && Number(data.due_day) <= Number(purchaseDay)) {
+          itemStatus = 'completed';
+
+          const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
+          await pool.query(
+            'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
+            [newBalance, data.bank_account_id],
+          );
+        }
+
+        payload = {
+          ...recorrentTransactionPayload,
+          installments_group_id: installmentGroupId,
+          value: data.value,
+          due_date: currentDueDate,
+          current_installment: currentInstallment,
+          status: itemStatus,
+        };
+
+        const installmentQuery = createQuery(payload);
+        const installmentResult = await pool.query(installmentQuery);
+
+        // Adiciona a parcela no array de resultados
+        result.push(installmentResult.rows[0]);
+      }
+
+      return { rows: result };
+    }
 
     // Lançamento de entradas.
     if (data.type === 'incomings') {

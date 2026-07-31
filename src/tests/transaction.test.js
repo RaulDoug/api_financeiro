@@ -1,4 +1,4 @@
-import { beforeEach, describe, test, expect } from 'vitest';
+import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import pool from '../config/db.js';
@@ -12,6 +12,8 @@ describe('TransactionServices - create()', () => {
   let transactionService;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-10T12:00:00Z'));
     const { user, authHeader } = await createAuthenticatedUser();
     const wallet = await createWallet(user.id);
     const creatorUserId = user.id;
@@ -105,6 +107,10 @@ describe('TransactionServices - create()', () => {
     };
 
     transactionService = new TransactionServices();
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
   });
 
   describe('Sucesso - Happy Path', () => {
@@ -241,6 +247,255 @@ describe('TransactionServices - create()', () => {
       expect(result.rows[2].value).toBe(50.00);
       expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-09');
       expect(result.rows[2].invoice_id).toBe(`${result.rows[0].pay_methods_id}_2026/10`);
+    });
+
+    test('Transações normais à vista 1x devem ter installments_group_id único por transação e current_installment = 1, total_installments = 1', async () => {
+      const payloadA = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 100.00,
+        description: 'Compra no cartão de crédito',
+        purchase_date: '2026-07-15',
+        installments_number: 1,
+      };
+
+      const transactionA = await transactionService.create(payloadA);
+      const installmenteGroupIdA = transactionA.installments_group_id;
+      const totalInstallmentsQueryA = await pool.query(
+        'SELECT current_installment FROM transactions WHERE installments_group_id = $1',
+        [installmenteGroupIdA],
+      );
+      const totalInstallmentsA = totalInstallmentsQueryA.rows.length;
+
+      const payloadB = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Compra no cartão de crédito',
+        purchase_date: '2026-07-1',
+        installments_number: 1,
+      };
+
+      const transactionB = await transactionService.create(payloadB);
+      const installmenteGroupIdB = transactionB.installments_group_id;
+      const totalInstallmentsQueryB = await pool.query(
+        'SELECT current_installment FROM transactions WHERE installments_group_id = $1',
+        [installmenteGroupIdB],
+      );
+      const totalInstallmentsB = totalInstallmentsQueryB.rows.length;
+
+      // Transasção A
+      expect(transactionA.installments_group_id).toBe(installmenteGroupIdA);
+      expect(transactionA.value).toBe(100.00);
+      expect(transactionA.due_date.toISOString().slice(0, 10)).toBe('2026-08-09');
+      expect(transactionA.invoice_id).toBe(`${transactionA.pay_methods_id}_2026/08`);
+      expect(totalInstallmentsA).toBe(1);
+
+      // Transasção B
+      expect(transactionB.installments_group_id).toBe(installmenteGroupIdB);
+      expect(transactionB.value).toBe(150.00);
+      expect(transactionB.due_date.toISOString().slice(0, 10)).toBe('2026-07-09');
+      expect(transactionB.invoice_id).toBe(`${transactionB.pay_methods_id}_2026/07`);
+      expect(totalInstallmentsB).toBe(1);
+    });
+
+    test('Deve conseguir criar transações recorrentes marcando todas com o mesmo installments_group_id sem alterar o valor unitário', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 1000.00,
+        description: 'Aluguél',
+        purchase_date: '2026-07-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(1000.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-08-15');
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(1000.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(1000.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-15');
+    });
+
+    test('Deve conseguir criar transações de assinatura com forma de pagamento definida como cartão de crédito marcando todas com o mesmo installments_group_id sem alterar o valor unitário', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 30.00,
+        description: 'Streaming',
+        purchase_date: '2026-07-15',
+        installments_number: 3,
+        is_recurrent: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(30.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-08-09');
+      expect(result.rows[0].invoice_id).toBe(`${result.rows[0].pay_methods_id}_2026/08`);
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(30.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-09-09');
+      expect(result.rows[1].invoice_id).toBe(`${result.rows[0].pay_methods_id}_2026/09`);
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(30.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-09');
+      expect(result.rows[2].invoice_id).toBe(`${result.rows[0].pay_methods_id}_2026/10`);
+    });
+
+    test('Deve lançar uma transação recorrente com sucesso quando é passado que a primeira transação é para o mês atual como completed caso o dia do vencimento for igual ou menor que o dia atual. Deve atualizar o saldo da conta bancária para a primeira parcela', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Streaming',
+        purchase_date: '2026-07-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+        first_this_month: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(150.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-07-15');
+      expect(result.rows[0].status).toBe('completed');
+
+      const bankAccountNewBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(bankAccountNewBalance.rows[0].balance).toBe(150.00);
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(150.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-08-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(150.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      vi.useRealTimers();
+    });
+
+    test('Deve lançar uma transação recorrente com sucesso quando passado que a primeira transação é para o mês atual, o status fica como pending caso o dia do vencimento for maior que o dia da compra. Não altera o saldo da conta bancária', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-10T12:00:00Z'));
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Streaming',
+        purchase_date: '2026-07-10',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+        first_this_month: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(150.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-07-15');
+      expect(result.rows[0].status).toBe('pending');
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(150.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-08-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(150.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Saldo conta bancária
+      const bankAccountNewBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(bankAccountNewBalance.rows[0].balance).toBe(300.00);
+
+      vi.useRealTimers();
     });
   });
 
@@ -488,6 +743,43 @@ describe('TransactionServices - create()', () => {
         .rejects
         .toThrow('Conta bancária de destino não pode ser a mesma da conta de origem');
     });
+
+    test('Não deve permitir um usuário com permisão viwer realizar qualquer operação de inclusão', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-11T12:00:00Z'));
+
+      const userViewer = await createAuthenticatedUser();
+
+      await pool.query(
+        'INSERT INTO users_wallets (user_id, wallet_id, role) VALUES ($1, $2, $3)',
+        [userViewer.user.id, testData.walletId, 'viewer'],
+      );
+
+      const validadeUsersWallets = await pool.query(
+        'SELECT * FROM users_wallets WHERE wallet_id = $1',
+        [testData.walletId],
+      );
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: userViewer.user.id,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        status: 'pending',
+        value: 100.00,
+        description: 'Salário',
+        due_date: '2026-08-10',
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Usário sem permissão ou não vinculado a carteira');
+
+      vi.useRealTimers();
+    });
   });
 
   describe('Regras de Saldo da Conta (Service + Database Transactions)', () => {
@@ -628,6 +920,39 @@ describe('TransactionServices - create()', () => {
       const updatedBalance = Number(balanceBankAccount.rows[0].balance);
 
       expect(updatedBalance).toBe(250.00);
+    });
+
+    test('Deve rejeitar uma transferência quando a conta bancária não tiver saldo suficiente ou não permitir valores negativos', async () => {
+      const bankAccountNoFunds = await request(app)
+        .post('/api/bank-account/register')
+        .set('Authorization', testData.authHeader)
+        .set('x-wallet-id', testData.walletId)
+        .send({
+          bank_name: 'Banco sem saldo',
+          balance: 0, // Saldo zerado
+          allow_negative_balance: false, // Não permitie saldo negativo
+        });
+
+      const bankAccountNoFundsId = bankAccountNoFunds.body.item.id;
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: bankAccountNoFundsId,
+        destiny_bank_account_id: testData.bankAccountDestinyId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'transfers',
+        status: 'completed',
+        value: 100.00,
+        description: 'Transferencia entre contas',
+        due_date: '2026-08-10',
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Conta bancária com saldo insuficente para realizar a transação');
     });
   });
 
@@ -784,6 +1109,180 @@ describe('TransactionServices - create()', () => {
       await expect(transactionService.create(payload))
         .rejects
         .toThrow('O número de parcelas não pode ser menor que 1');
+    });
+
+    test('Transações do tipo recorrentes deve ter definido os campos de installments_number e due_day', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 1000.00,
+        description: 'Aluguél',
+        is_recurrent: true,
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Em uma transação recorrente os campos de installments_number e due_day são obrigatórios');
+    });
+
+    test('Não é possível lançar uma trasação recorrente quando o installments_number menor que 2', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 1000.00,
+        description: 'Aluguél',
+        purchase_date: '2026-07-15',
+        installments_number: 1,
+        due_day: 15,
+        is_recurrent: true,
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('O valor de installments_number não pode ser menor que 2 em trasações definidas como recorrente');
+    });
+
+    test('Ao lançar uma transação recorrente onde pega o mês de dezembro deve ser lançado corretamente a transação alterando o ano', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 500.00,
+        description: 'Parcela recorrente',
+        purchase_date: '2026-11-15',
+        due_day: 10,
+        installments_number: 3,
+        is_recurrent: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(500.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-12-10');
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(500.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2027-01-10');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(500.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2027-02-10');
+    });
+
+    test('Quando first_this_month for false, primeira parcela é gerada no próximo mês e seu status é forçado como pending (mesmo que o due_day seja menor que o dia atual)', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Streaming',
+        purchase_date: '2026-07-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+        first_this_month: false,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(150.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-08-15');
+      expect(result.rows[0].status).toBe('pending');
+
+      const bankAccountNewBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(bankAccountNewBalance.rows[0].balance).toBe(300.00);
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(150.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(150.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-15');
+      expect(result.rows[2].status).toBe('pending');
+
+      vi.useRealTimers();
+    });
+
+    test('Se a data da compra for em dezempor e first_this_month === false. a primeira parcela deve iniciar em janeiro do ano seguinte', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-12-15T12:00:00Z'));
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.creatorUserId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Streaming',
+        purchase_date: '2026-12-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+        first_this_month: false,
+      };
+
+      const result = await transactionService.create(payload);
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2027-01-15');
+      expect(result.rows[0].status).toBe('pending');
+
+      // Parcela 2
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2027-02-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Parcela 3
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2027-03-15');
+      expect(result.rows[2].status).toBe('pending');
+
+      vi.useRealTimers();
     });
   });
 });
