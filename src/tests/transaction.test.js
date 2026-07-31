@@ -755,11 +755,6 @@ describe('TransactionServices - create()', () => {
         [userViewer.user.id, testData.walletId, 'viewer'],
       );
 
-      const validadeUsersWallets = await pool.query(
-        'SELECT * FROM users_wallets WHERE wallet_id = $1',
-        [testData.walletId],
-      );
-
       const payload = {
         wallet_id: testData.walletId,
         creator_user_id: userViewer.user.id,
