@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import request from 'supertest';
-import app from '../app.js';
-import pool from '../config/db.js';
-import { createAuthenticatedUser, createWallet } from './testUtils.js';
-import TransactionServices from '../services/transactionServices.js';
-import { createSchema } from '../schemas/transactionSchema.js';
+import app from '../../app.js';
+import pool from '../../config/db.js';
+import { createAuthenticatedUser, createWallet } from '../testUtils.js';
+import TransactionServices from '../../services/transactionServices.js';
+import { createSchema } from '../../schemas/transactionSchema.js';
+import { setupTransactionData } from './transactionTestUtils.js';
 
 describe('TransactionServices - create()', () => {
   // Configurações de variáveis e beforeEach create()
@@ -14,97 +15,8 @@ describe('TransactionServices - create()', () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-10T12:00:00Z'));
-    const { user, authHeader } = await createAuthenticatedUser();
-    const wallet = await createWallet(user.id);
-    const creatorUserId = user.id;
 
-    const createBankAccount = await request(app)
-      .post('/api/bank-account/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        bank_name: 'Banco de teste',
-        balance: 300,
-      });
-
-    const createBankAccountTransferDestiny = await request(app)
-      .post('/api/bank-account/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        bank_name: 'Banco de transferência',
-        balance: 100,
-      });
-
-    const createPayMethod = await request(app)
-      .post('/api/pay-method/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Pix',
-      });
-
-    const createPayMethodCreditCard = await request(app)
-      .post('/api/pay-method/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Pix',
-        bank_account_id: createBankAccount.body.item.id,
-        credit_card: true,
-        due_day: 9,
-        closing_day: 2,
-      });
-
-    const createCategorieExpense = await request(app)
-      .post('/api/categorie/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Categoria',
-        type: 'expenses',
-      });
-
-    const createCategorieIncome = await request(app)
-      .post('/api/categorie/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Salário',
-        type: 'incomings',
-      });
-
-    const createCounterpartyPayee = await request(app)
-      .post('/api/counterpartie/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Imobiliária',
-        type: 'payee',
-      });
-
-    const createCounterpartyPayer = await request(app)
-      .post('/api/counterpartie/register')
-      .set('Authorization', authHeader)
-      .set('x-wallet-id', wallet.id)
-      .send({
-        name: 'Empresa',
-        type: 'payer',
-      });
-
-    testData = {
-      authHeader,
-      walletId: wallet.id,
-      creatorUserId: creatorUserId,
-      bankAccountId: createBankAccount.body.item.id,
-      bankAccountDestinyId: createBankAccountTransferDestiny.body.item.id,
-      payMethodId: createPayMethod.body.item.id,
-      payMethodCreditCardId: createPayMethodCreditCard.body.item.id,
-      categorieExpenseId: createCategorieExpense.body.item.id,
-      categorieIncomeId: createCategorieIncome.body.item.id,
-      counterpartyPayeeId: createCounterpartyPayee.body.item.id,
-      counterpartyPayerId: createCounterpartyPayer.body.item.id,
-    };
+    testData = await setupTransactionData();
 
     transactionService = new TransactionServices();
   });
@@ -162,7 +74,7 @@ describe('TransactionServices - create()', () => {
         wallet_id: testData.walletId,
         creator_user_id: testData.creatorUserId,
         bank_account_id: testData.bankAccountId,
-        destiny_bank_account_id: testData.bankAccountDestinyId,
+        destiny_bank_account_id: testData.bankAccountIdB,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,
@@ -573,7 +485,7 @@ describe('TransactionServices - create()', () => {
       };
 
       expect(() => createSchema.parse(payload))
-        .toThrow("Status inválido. Deve ser 'pending', 'completed' ou 'canceled'");
+        .toThrow("Status inválido. Deve ser 'pending', 'completed', 'canceled' ou 'expired'");
     });
 
     test('Deve rejeitar transação concluída (completed) sem informar uma conta bancária (bank_account_id)', async () => {
@@ -934,7 +846,7 @@ describe('TransactionServices - create()', () => {
         wallet_id: testData.walletId,
         creator_user_id: testData.creatorUserId,
         bank_account_id: bankAccountNoFundsId,
-        destiny_bank_account_id: testData.bankAccountDestinyId,
+        destiny_bank_account_id: testData.bankAccountIdB,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,

@@ -97,8 +97,6 @@ describe('Pay Methods create', () => {
         closing_day: 2,
       });
 
-    console.log(response);
-
     expect(response.status).toBe(400);
     expect(response.body.errors[0].message).toBe('Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento e dia de fechamento');
   });

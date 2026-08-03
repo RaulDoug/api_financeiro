@@ -167,6 +167,8 @@ CREATE TABLE transactions (
   transfers_id UUID DEFAULT gen_random_uuid(),
   invoice_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT now(),
+  updater_user_id UUID,
+  updated_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT fk_t_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,

@@ -20,7 +20,7 @@ test('Deve cadastrar uma conta bancaria com sucesso', async () => {
   expect(response.status).toBe(201);
   expect(response.body.item).toHaveProperty('id');
   expect(response.body.item.bank_name).toBe('Nubank');
-  expect(response.body.item.balance).toBe('0');
+  expect(response.body.item.balance).toBe(0);
 });
 
 // Listar todas as contas bancárias da carteira ativa
