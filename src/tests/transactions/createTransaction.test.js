@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../../app.js';
 import pool from '../../config/db.js';
 import { createAuthenticatedUser, createWallet } from '../testUtils.js';
-import TransactionServices from '../../services/transactionServices.js';
+import TransactionServices from '../../services/transactions/transactionServices.js';
 import { createSchema } from '../../schemas/transactionSchema.js';
 import { setupTransactionData } from './transactionTestUtils.js';
 

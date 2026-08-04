@@ -1,5 +1,5 @@
 import BaseController from './baseControllers.js';
-import TransactionServices from '../services/transactionServices.js';
+import TransactionServices from '../services/transactions/transactionServices.js';
 
 const transactionServices = new TransactionServices();
 
