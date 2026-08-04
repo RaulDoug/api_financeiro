@@ -227,7 +227,82 @@ describe('TransactionServices - update()', () => {
   describe('Transições de Status', () => {
     describe('pending para ...', () => {
       test('SUCESSO - completed: Efetiva movimentação na conta bancária e preenche payment_date com data atual (se não enviada).', async () => {
+        const transactionPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.creatorUserId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieIncomeId,
+          pay_methods_id: testData.payMethodId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 100.00,
+          description: 'Saída',
+          purchase_Date: '2026-07-10',
+          due_date: '2026-08-10',
+        };
 
+        const transaction = await transactionService.create(transactionPayload);
+
+        expect(transaction.rows[0].status).toBe('pending');
+        expect(transaction.rows[0].value).toBe(100.00);
+
+        const payload = {
+          transaction_id: transaction.rows[0].id,
+          status: 'completed',
+        };
+
+        const result = await transactionService.update(payload);
+
+        // Saldo inicial 300.00
+        const bankAccountBalance = await pool.query(
+          'SELECT balance FROM bank_accounts WHERE id = $1',
+          [testData.bankAccountId],
+        );
+
+        expect(result.status).toBe('completed');
+        expect(result.value).toBe(100.00);
+        expect(bankAccountBalance.rows[0].balance).toBe(200.00);
+      });
+
+      test('FALHA - completed: Recusa se a conta bancária não tiver saldo/limite.', async () => {
+        const transactionPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.creatorUserId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieIncomeId,
+          pay_methods_id: testData.payMethodId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 350.00,
+          description: 'Saída',
+          purchase_Date: '2026-07-10',
+          due_date: '2026-08-10',
+        };
+
+        const transaction = await transactionService.create(transactionPayload);
+
+        expect(transaction.rows[0].status).toBe('pending');
+        expect(transaction.rows[0].value).toBe(350.00);
+
+        const payload = {
+          transaction_id: transaction.rows[0].id,
+          status: 'completed',
+        };
+
+        await transactionService.update(payload)
+          .rejects
+          .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
+      });
+
+      test('SUCESSO - cancelled: Muda status, não altera saldo e a transação não aparece nas listagens padrão.', async () => {
+        const payload = {
+          transaction_id: testData.baseTransactionId,
+          status: 'cancelled',
+        };
+
+        const result = await transactionService.update(payload);
       });
     });
   });
