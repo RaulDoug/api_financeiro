@@ -128,7 +128,7 @@ export const setupTransactionData = async () => {
   const testData = {
     authHeader,
     walletId: wallet.id,
-    creatorUserId: creatorUserId,
+    userId: creatorUserId,
     bankAccountId: createBankAccount.body.item.id,
     bankAccountIdB: createBankAccountB.body.item.id,
     payMethodId: createPayMethod.body.item.id,

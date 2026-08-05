@@ -89,7 +89,7 @@ export default class TransactionServices extends BaseServices {
       }
     };
 
-    // Função para montar a query para rodar no banco
+    // Função para montar a query de INSERT
     function createQuery(payload) {
       const { columns, placeholders, values } = queryHelper(payload);
 
@@ -430,6 +430,134 @@ export default class TransactionServices extends BaseServices {
   };
 
   async update(data) {
+    const { user_id, wallet_id, transaction_id, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
 
+    if (!user_id || !wallet_id || !transaction_id) {
+      throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
+    }
+
+    await userValidateHelper(user_id, wallet_id); // Valida se o usuário existe ou tem permissão para realizar a operação
+
+
+    // Estado atual da transação no banco de dados
+    const validateTransaction = await pool.query(
+      'SELECT * FROM transactions WHERE id = $1',
+      [transaction_id],
+    );
+
+    // Valida se o transaction_id é valido
+    if (validateTransaction.rows.length === 0) {
+      throw new Error('ID da transação informado é inválido ou inexistente');
+    }
+
+    // Validação se foi passado algum campo para atualizar
+    if (Object.keys(updateFields).length === 0) {
+      throw new Error('Nenhum campo informado para atualização');
+    }
+
+    await validateTransactionsFksHelper(data, true); // Validação das Fks para update
+
+    if (updateFields.value) {
+      if (updateFields.value < 0 || typeof updateFields.valor !== Number) {
+        throw new Error('Valor informado inválido, aceita apenas valores positivos acima de 0');
+      }
+    }
+
+    // Validar payment_date se foi enviada se sim validar se é valido
+    const { today, year, month, day } = todayHelper();
+    if (updateFields.payment_date) {
+      const paymentDateFormatted = new Date(updateFields.payment_date);
+
+      if (paymentDateFormatted > today) {
+        throw new Error('Não é possível definir a data do pagamento para uma data maior que a atual');
+      }
+    }
+
+    // Compara os valores passados no update com os valores originais da transação
+    const currentTransaction = validateTransaction.rows[0];
+
+    const fieldsToUpdate = {}; // Armazena campos que tem valor diferente da transação atual
+
+    // Validação se os campos passados são iguais aos campos atuais da transação;
+    for (const key of Object.keys(updateFields)) {
+      let newValue = updateFields[key];
+      let currentValue = currentTransaction[key];
+
+      if (currentValue instanceof Date) {
+        currentValue = currentValue.toISOString().split('T')[0];
+      }
+
+      if (newValue !== currentValue) {
+        fieldsToUpdate[key] = newValue;
+      }
+    }
+
+    const updateKeys = Object.keys(fieldsToUpdate); // Arrey das keys do fieldsToUpdate
+
+    if (updateKeys.length === 0) {
+      return {
+        message: 'Nenhum valor foi alterado',
+        item: currentTransaction,
+      };
+    }
+
+    // Função para validar status
+    const targetStatus = fieldsToUpdate.status || currentTransaction.status;
+
+    // Função para montar a query de UPDATE
+    let query;
+    let payload = {
+      ...fieldsToUpdate,
+    };
+
+    function buildUpdatePayload(fields) {
+      for (const key of Object.keys(fields)) {
+        const objectValue = updateFields[key];
+
+        payload[key] = objectValue;
+      }
+
+      return payload;
+    }
+
+    function createUpdateQuery(updateFields, transactionId) {
+      const { keys, values } = queryHelper(updateFields);
+      const setClause = keys
+        .map((key, index) => `${key} = $${index + 1}`)
+        .join(', ');
+
+      const valuesWithTransactionId = [
+        ...values,
+        transactionId,
+      ];
+
+      return query = {
+        text: `UPDATE transactions SET ${setClause} WHERE id = $${values.length + 1} RETURNING *`,
+        values: valuesWithTransactionId,
+      };
+    }
+
+    // Atualização de campos simples
+    const simpleUpdatedFields = ['description', 'category_id', 'pay_methods_id', 'counterparty_id', 'purchase_date'];
+
+    // Validação se o fieldsToUpdate contém somente campos de atualização siples
+    const isOnlySimpleFields = updateKeys.every(key => simpleUpdatedFields.includes(key));
+
+    if (isOnlySimpleFields && targetStatus !== 'completed') {
+      payload = buildUpdatePayload(fieldsToUpdate);
+    }
+
+
+
+
+
+
+
+
+
+    query = createUpdateQuery(payload, transaction_id);
+    const result = await pool.query(query);
+
+    return result.rows[0];
   };
 };

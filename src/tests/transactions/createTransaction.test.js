@@ -29,7 +29,7 @@ describe('TransactionServices - create()', () => {
     test('Deve criar uma transação pendente com sucesso quando todos os dados forem válidos', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -50,7 +50,7 @@ describe('TransactionServices - create()', () => {
     test('Deve criar uma transação concluída completed com sucesso quando todos os dados forem válidos', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -72,7 +72,7 @@ describe('TransactionServices - create()', () => {
     test('Deve criar uma transação de transferência entre contas bancárias com sucesso quando todos os dados forem válidos', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         destiny_bank_account_id: testData.bankAccountIdB,
         category_id: testData.categorieIncomeId,
@@ -99,7 +99,7 @@ describe('TransactionServices - create()', () => {
     test('Deve conseguir lançar uma transação de saída expenses com sucesso quando o método de pagamento tiver credit_card como true', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -121,7 +121,7 @@ describe('TransactionServices - create()', () => {
     test('Deve conseguir lançar uma transação parcelada no cartão de crédito, criando todas as parcelas vinculadas ao mesmo installments_group_id', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -164,7 +164,7 @@ describe('TransactionServices - create()', () => {
     test('Transações normais à vista 1x devem ter installments_group_id único por transação e current_installment = 1, total_installments = 1', async () => {
       const payloadA = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -186,7 +186,7 @@ describe('TransactionServices - create()', () => {
 
       const payloadB = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -224,7 +224,7 @@ describe('TransactionServices - create()', () => {
     test('Deve conseguir criar transações recorrentes marcando todas com o mesmo installments_group_id sem alterar o valor unitário', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -263,7 +263,7 @@ describe('TransactionServices - create()', () => {
     test('Deve conseguir criar transações de assinatura com forma de pagamento definida como cartão de crédito marcando todas com o mesmo installments_group_id sem alterar o valor unitário', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -307,7 +307,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -361,7 +361,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -415,7 +415,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação com descrição contendo menos de 3 caracteres', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -434,7 +434,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação com valor igual a zero ou negativo', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -453,7 +453,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação com tipo (type) inválido', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -472,7 +472,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação com status inválido', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -491,7 +491,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação concluída (completed) sem informar uma conta bancária (bank_account_id)', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,
@@ -509,7 +509,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação concluída (completed) sem (bank_account_id) for inválido', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: '123',
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -528,7 +528,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação que receba uma payment_date inválido', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -548,7 +548,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transação que receba uma payment_date maior que a data atual', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -568,7 +568,7 @@ describe('TransactionServices - create()', () => {
 
   describe('Validações de Banco e Pertencimento (Service + FKs)', () => {
     test('Deve rejeitar transação se a conta bancária não pertencer à mesma wallet_id', async () => {
-      const walletB = await createWallet(testData.creatorUserId);
+      const walletB = await createWallet(testData.userId);
       const bankAccountB = await request(app)
         .post('/api/bank-account/register')
         .set('Authorization', testData.authHeader)
@@ -584,7 +584,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: bankAccountBId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -602,7 +602,7 @@ describe('TransactionServices - create()', () => {
     });
 
     test('Deve rejeitar transação se a categoria não pertencer à mesma wallet_id', async () => {
-      const walletB = await createWallet(testData.creatorUserId);
+      const walletB = await createWallet(testData.userId);
       const categorieB = await request(app)
         .post('/api/categorie/register')
         .set('Authorization', testData.authHeader)
@@ -618,7 +618,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: categorieBId,
         pay_methods_id: testData.payMethodId,
@@ -638,7 +638,7 @@ describe('TransactionServices - create()', () => {
     test('Deve rejeitar transferência onde a conta bancária de origem é igual à de destino', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         destiny_bank_account_id: testData.bankAccountId, // Passando uma nova proprieade que recebe a conta bancaria de destino da transferência.
         category_id: testData.categorieExpenseId,
@@ -705,7 +705,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: bankAccountNoFundsId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -738,7 +738,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: bankAccountAllowNegativeId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -768,7 +768,7 @@ describe('TransactionServices - create()', () => {
     test('Deve somar o valor ao saldo da conta bancária ao criar uma transação de entrada income concluída', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -799,7 +799,7 @@ describe('TransactionServices - create()', () => {
     test('Deve subtrair o valor do saldo da conta bancária ao criar uma transação de saída expense concluída', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -844,7 +844,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: bankAccountNoFundsId,
         destiny_bank_account_id: testData.bankAccountIdB,
         category_id: testData.categorieIncomeId,
@@ -869,7 +869,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
@@ -891,7 +891,7 @@ describe('TransactionServices - create()', () => {
     test('Valida se foi definido uma data da compra, se não aplica a data atual como valor do campo purchase_date', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -914,7 +914,7 @@ describe('TransactionServices - create()', () => {
     test('Não deve conseguir lançar uma entrada incomings com forma de pagamento com a opção credit_card como true', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -935,7 +935,7 @@ describe('TransactionServices - create()', () => {
       // Neste caso se a compra for feita no dia 01/07 ele deve entrar na fatura que vence 09/07 e não na fatura de 09/08
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -957,7 +957,7 @@ describe('TransactionServices - create()', () => {
     test('Deve calcular a data de vencimento corretamente quando a virada de mês ocorre em dezembro mudança de ano para pay_methods com a opção credit_card como true', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -979,7 +979,7 @@ describe('TransactionServices - create()', () => {
     test('Cada parcela de uma compra no cartão deve ter um invoice_id correspondente ao seu próprio mês de vencimento', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -1001,7 +1001,7 @@ describe('TransactionServices - create()', () => {
     test('Não deve permitir cadastrar parcelamento com quantidade de parcelas menor que 1 ou não inteira', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodCreditCardId,
@@ -1021,7 +1021,7 @@ describe('TransactionServices - create()', () => {
     test('Transações do tipo recorrentes deve ter definido os campos de installments_number e due_day', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -1040,7 +1040,7 @@ describe('TransactionServices - create()', () => {
     test('Não é possível lançar uma trasação recorrente quando o installments_number menor que 2', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -1062,7 +1062,7 @@ describe('TransactionServices - create()', () => {
     test('Ao lançar uma transação recorrente onde pega o mês de dezembro deve ser lançado corretamente a transação alterando o ano', async () => {
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -1104,7 +1104,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,
@@ -1158,7 +1158,7 @@ describe('TransactionServices - create()', () => {
 
       const payload = {
         wallet_id: testData.walletId,
-        creator_user_id: testData.creatorUserId,
+        creator_user_id: testData.userId,
         bank_account_id: testData.bankAccountId,
         category_id: testData.categorieExpenseId,
         pay_methods_id: testData.payMethodId,

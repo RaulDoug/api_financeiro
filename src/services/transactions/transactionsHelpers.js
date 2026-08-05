@@ -1,9 +1,9 @@
 import pool from '../../config/db.js';
 
-export const userValidateHelper = async (creatorUserValidate, walletId) => {
+export const userValidateHelper = async (userId, walletId) => {
   const result = await pool.query(
     'SELECT user_id, wallet_id, role FROM users_wallets WHERE user_id = $1 AND wallet_id = $2 AND role != $3',
-    [creatorUserValidate, walletId, 'viewer'],
+    [userId, walletId, 'viewer'],
   );
 
   if (result.rows.length === 0) {
