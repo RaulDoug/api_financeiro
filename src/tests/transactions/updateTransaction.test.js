@@ -274,11 +274,10 @@ describe('TransactionServices - update()', () => {
         [testData.bankAccountId],
       );
 
-
       expect(result.id).toBe(transactionCompletedId);
       expect(result.bank_account_id).toBe(testData.bankAccountIdB);
-      expect(oldBankAccountBalanceReverted.rows[0].balance).toBe(300.00);
       expect(bankAccountBalance.rows[0].balance).toBe(50.00);
+      expect(oldBankAccountBalanceReverted.rows[0].balance).toBe(300.00);
     });
 
     test('FALHA - Ao alterar a bank_account_id de uma transação completed, deve falhar se a conta nova não tiver saldo/limite, e não deve alterar o saldo da conta antiga.', async () => {
@@ -309,7 +308,7 @@ describe('TransactionServices - update()', () => {
 
   describe('Transições de Status', () => {
     describe('pending para ...', () => {
-      test('SUCESSO - pending -> completed: Efetiva movimentação na conta bancária e preenche payment_date com data atual (se não enviada).', async () => {
+      test('SUCESSO - pending -> completed: Efetiva movimentação na conta bancária e preenche payment_date com data atual se não enviada.', async () => {
         const transactionPayload = {
           wallet_id: testData.walletId,
           creator_user_id: testData.userId,
@@ -327,13 +326,13 @@ describe('TransactionServices - update()', () => {
 
         const transaction = await transactionService.create(transactionPayload);
 
-        expect(transaction.rows[0].status).toBe('pending');
-        expect(transaction.rows[0].value).toBe(100.00);
+        expect(transaction.status).toBe('pending');
+        expect(transaction.value).toBe(100.00);
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transaction_id: transaction.rows[0].id,
+          transaction_id: transaction.id,
           status: 'completed',
         };
 
@@ -360,7 +359,7 @@ describe('TransactionServices - update()', () => {
           counterparty_id: testData.counterpartyPayerId,
           type: 'expenses',
           status: 'pending',
-          value: 350.00,
+          value: 250.00,
           description: 'Saída',
           purchase_Date: '2026-07-10',
           due_date: '2026-08-10',
@@ -368,17 +367,18 @@ describe('TransactionServices - update()', () => {
 
         const transaction = await transactionService.create(transactionPayload);
 
-        expect(transaction.rows[0].status).toBe('pending');
-        expect(transaction.rows[0].value).toBe(350.00);
+        expect(transaction.status).toBe('pending');
+        expect(transaction.value).toBe(250.00);
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transaction_id: transaction.rows[0].id,
+          transaction_id: transaction.id,
           status: 'completed',
+          value: 350.00,
         };
 
-        await transactionService.update(payload)
+        await expect(transactionService.update(payload))
           .rejects
           .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
       });
@@ -393,8 +393,8 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(testData.baseTransactionId);
-        expect(result.rows[0].status).toBe('cancelled');
+        expect(result.id).toBe(testData.baseTransactionId);
+        expect(result.status).toBe('cancelled');
       });
 
       test('SUCESSO - pending -> expired: Permite mudança se a due_date estiver atrasada.', async () => {
@@ -411,9 +411,9 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(testData.baseTransactionId);
-        expect(result.rows[0].due_date).toBe('2026-08-01');
-        expect(result.rows[0].status).toBe('expired');
+        expect(result.id).toBe(testData.baseTransactionId);
+        expect((result.due_date).toISOString().split('T')[0]).toBe('2026-08-01');
+        expect(result.status).toBe('expired');
 
         vi.useRealTimers();
       });
@@ -430,7 +430,7 @@ describe('TransactionServices - update()', () => {
           status: 'expired',
         };
 
-        await transactionService.update(payload)
+        await expect(transactionService.update(payload))
           .rejects
           .toThrow('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
 
@@ -457,14 +457,13 @@ describe('TransactionServices - update()', () => {
           value: 100.00,
           description: 'Saída',
           purchase_Date: '2026-08-04',
-          payment_date: '2026-08-04',
           due_date: '2026-08-10',
         };
 
         const completedTransactionResult = await transactionService.create(payload);
         // Saldo da conta bancária é para ser 200.00
 
-        completedTransactionId = completedTransactionResult.rows[0].id;
+        completedTransactionId = completedTransactionResult.id;
       });
 
       test('SUCESSO - completed -> pending: Estorna a movimentação bancária e define payment_date como null.', async () => {
@@ -482,9 +481,9 @@ describe('TransactionServices - update()', () => {
           [testData.bankAccountId],
         );
 
-        expect(result.rows[0].id).toBe(completedTransactionId);
-        expect(result.rows[0].status).toBe('pending');
-        expect(result.rows[0].payment_date).toBe(null);
+        expect(result.id).toBe(completedTransactionId);
+        expect(result.status).toBe('pending');
+        expect(result.payment_date).toBe(null);
         expect(updatedBalance.rows[0].balance).toBe(300.00);
       });
 
@@ -503,9 +502,9 @@ describe('TransactionServices - update()', () => {
           [testData.bankAccountId],
         );
 
-        expect(result.rows[0].id).toBe(completedTransactionId);
-        expect(result.rows[0].status).toBe('cancelled');
-        expect(result.rows[0].payment_date).toBe(null);
+        expect(result.id).toBe(completedTransactionId);
+        expect(result.status).toBe('cancelled');
+        expect(result.payment_date).toBe(null);
         expect(updatedBalance.rows[0].balance).toBe(300.00);
       });
 
@@ -525,9 +524,9 @@ describe('TransactionServices - update()', () => {
           [testData.bankAccountId],
         );
 
-        expect(result.rows[0].id).toBe(completedTransactionId);
-        expect(result.rows[0].status).toBe('expired');
-        expect(result.rows[0].payment_date).toBe(null);
+        expect(result.id).toBe(completedTransactionId);
+        expect(result.status).toBe('expired');
+        expect(result.payment_date).toBe(null);
         expect(updatedBalance.rows[0].balance).toBe(300.00);
       });
 
@@ -540,7 +539,7 @@ describe('TransactionServices - update()', () => {
         };
         // due_date da transação: 2026-08-10
 
-        await transactionService.update(payload)
+        await expect(transactionService.update(payload))
           .rejects
           .toThrow('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
       });
@@ -571,7 +570,7 @@ describe('TransactionServices - update()', () => {
         const cancelledTransactionResult = await transactionService.create(payload);
         // Saldo da conta bancária é para ser 200.00
 
-        cancelledTransactionId = cancelledTransactionResult.rows[0].id;
+        cancelledTransactionId = cancelledTransactionResult.id;
       });
 
       test('SUCESSO - cancelled -> pending: Restaura para pendente com o due_date for >= hoje.', async () => {
@@ -584,8 +583,8 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(cancelledTransactionId);
-        expect(result.rows[0].status).toBe('pending');
+        expect(result.id).toBe(cancelledTransactionId);
+        expect(result.status).toBe('pending');
       });
 
       test('SUCESSO - cancelled -> pending: Restaura para pendente com o due_date < hoje, já migra automaticamente para expired.', async () => {
@@ -599,8 +598,8 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(cancelledTransactionId);
-        expect(result.rows[0].status).toBe('cancelled');
+        expect(result.id).toBe(cancelledTransactionId);
+        expect(result.status).toBe('expired');
       });
 
       test('SUCESSO - cancelled -> completed: Efetiva a movimentação bancária (valida saldo/limite) e seta payment_date.', async () => {
@@ -621,8 +620,8 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(cancelledTransactionId);
-        expect(result.rows[0].status).toBe('completed');
+        expect(result.id).toBe(cancelledTransactionId);
+        expect(result.status).toBe('completed');
 
         const finalBankAccountBalance = await pool.query(
           'SELECT balance FROM bank_accounts WHERE id = $1',
@@ -642,9 +641,9 @@ describe('TransactionServices - update()', () => {
           value: 150.00,
         };
 
-        await transactionService.update(payload)
+        await expect(transactionService.update(payload))
           .rejects
-          .toThrow('Conta bancária com saldo insuficiente para operação');
+          .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
       });
     });
 
@@ -673,7 +672,7 @@ describe('TransactionServices - update()', () => {
         const completedTransactionResult = await transactionService.create(payload);
         // Saldo da conta bancária é para ser 200.00
 
-        expiredTransactionId = completedTransactionResult.rows[0].id;
+        expiredTransactionId = completedTransactionResult.id;
       });
 
       test('SUCESSO - expired -> completed: Efetiva movimentação bancária, define payment_date e opcionalmente processa envio de valores de multas/juros, caso existam.', async () => {
@@ -693,9 +692,9 @@ describe('TransactionServices - update()', () => {
           [testData.bankAccountId],
         );
 
-        expect(result.rows[0].id).toBe(expiredTransactionId);
-        expect(result.rows[0].status).toBe('completed');
-        expect(result.rows[0].balance).toBe(120.00);
+        expect(result.id).toBe(expiredTransactionId);
+        expect(result.status).toBe('completed');
+        expect(result.value).toBe(120.00);
         expect(bankAccountBalance.rows[0].balance).toBe(180.00);
       });
 
@@ -710,9 +709,9 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(expiredTransactionId);
-        expect(result.rows[0].due_date).toBe('2026-08-20');
-        expect(result.rows[0].status).toBe('pending');
+        expect(result.id).toBe(expiredTransactionId);
+        expect((result.due_date).toISOString().split('T')[0]).toBe('2026-08-20');
+        expect(result.status).toBe('pending');
       });
 
       test('SUCESSO - expired -> cancelled: Altera status corretamente.', async () => {
@@ -725,8 +724,8 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
 
-        expect(result.rows[0].id).toBe(expiredTransactionId);
-        expect(result.rows[0].status).toBe('cancelled');
+        expect(result.id).toBe(expiredTransactionId);
+        expect(result.status).toBe('cancelled');
       });
     });
   });
@@ -751,26 +750,27 @@ describe('TransactionServices - update()', () => {
         status: 'pending',
         value: 100.00,
         description: 'Salário',
-        purchase_Date: '2026-08-02',
+        purchase_date: '2026-08-02',
         due_date: '2026-08-10',
       };
 
       const transactionResult = await transactionService.create(transactionPayload);
-      const transacationResultId = transactionResult.rows[0].id;
-      expect(transactionPayload.rows[0].id).toBe(transacationResultId);
+      const transactionResultId = transactionResult.id;
+
+      expect(transactionResult.type).toBe('incomings');
 
       // Update do due_date
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
-        transaction_id: transacationResultId,
+        transaction_id: transactionResultId,
         due_date: '2026-07-10',
       };
 
       const result = await transactionService.update(payload);
 
-      expect(result.rows[0].id).toBe(transacationResultId);
-      expect(result.rows[0].status).toBe('expired');
+      expect(result.id).toBe(transactionResultId);
+      expect(result.status).toBe('expired');
     });
 
     test('SUCESSO - due_date futura: Ao mudar a due_date de uma transação expired para uma data no futuro, o status deve voltar para pending automaticamente.', async () => {
@@ -786,13 +786,14 @@ describe('TransactionServices - update()', () => {
         status: 'expired',
         value: 100.00,
         description: 'Salário',
-        purchase_Date: '2026-08-02',
+        purchase_date: '2026-08-02',
         due_date: '2026-07-10',
       };
 
       const transactionResult = await transactionService.create(transactionPayload);
-      const transacationResultId = transactionResult.rows[0].id;
-      expect(transactionPayload.rows[0].id).toBe(transacationResultId);
+      const transacationResultId = transactionResult.id;
+
+      expect(transactionResult.type).toBe('incomings');
 
       // Update due_date
       const payload = {
@@ -804,8 +805,8 @@ describe('TransactionServices - update()', () => {
 
       const result = await transactionService.update(payload);
 
-      expect(result.rows[0].id).toBe(transacationResultId);
-      expect(result.rows[0].status).toBe('pending');
+      expect(result.id).toBe(transacationResultId);
+      expect(result.status).toBe('pending');
     });
 
     test('SUCESSO - payment_date retroativa/atual: Ao preencher esse campo com data válida, o status muda automaticamente para completed efetivando saldos.', async () => {
@@ -821,36 +822,37 @@ describe('TransactionServices - update()', () => {
         status: 'pending',
         value: 100.00,
         description: 'Salário',
-        purchase_Date: '2026-08-02',
+        purchase_date: '2026-08-01',
         due_date: '2026-08-10',
       };
 
       const transactionResult = await transactionService.create(transactionPayload);
-      const transacationResultId = transactionResult.rows[0].id;
-      expect(transactionPayload.rows[0].id).toBe(transacationResultId);
+      const transacationResultId = transactionResult.id;
+
+      expect(transactionResult.type).toBe('incomings');
 
       // Update payment_date
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
         transaction_id: transacationResultId,
-        paymente_date: '2026-08-04',
+        payment_date: '2026-08-01',
       };
 
       const result = await transactionService.update(payload);
 
-      expect(result.rows[0].id).toBe(transacationResultId);
-      expect(result.rows[0].status).toBe('completed');
+      expect(result.id).toBe(transacationResultId);
+      expect(result.status).toBe('completed');
 
       const bankAccountBalance = await pool.query(
         'SELECT balance FROM bank_accounts WHERE id = $1',
         [testData.bankAccountId],
       );
 
-      expect(bankAccountBalance.rows[0].balance).toBe(200.00);
+      expect(bankAccountBalance.rows[0].balance).toBe(400.00);
     });
 
-    test('FALHA - payment_date retroativa/atual: Falha se tentar completar automaticamente, mas não houver saldo na conta.', async () => {
+    test('FALHA - payment_date retroativa/atual: Falha se tentar completar automaticamente uma transação expenses, quando passar um novo value mas não houver saldo na conta.', async () => {
       // Transação de base
       const transactionPayload = {
         wallet_id: testData.walletId,
@@ -859,30 +861,31 @@ describe('TransactionServices - update()', () => {
         category_id: testData.categorieIncomeId,
         pay_methods_id: testData.payMethodId,
         counterparty_id: testData.counterpartyPayerId,
-        type: 'incomings',
+        type: 'expenses',
         status: 'pending',
-        value: 350.00,
+        value: 300.00,
         description: 'Salário',
-        purchase_Date: '2026-08-02',
+        purchase_date: '2026-08-01',
         due_date: '2026-08-10',
       };
 
       const transactionResult = await transactionService.create(transactionPayload);
-      const transacationResultId = transactionResult.rows[0].id;
-      expect(transactionPayload.rows[0].id).toBe(transacationResultId);
+      const transacationResultId = transactionResult.id;
 
+      expect(transactionResult.type).toBe('expenses');
 
       // Update paymente_date
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
         transaction_id: transacationResultId,
-        paymente_date: '2026-08-04',
+        payment_date: '2026-08-01',
+        value: 350.00,
       };
 
-      await transactionService.update(payload)
+      await expect(transactionService.update(payload))
         .rejects
-        .toThrow('Conta bancária com saldo insuficiente para operação');
+        .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
     });
 
     test('FALHA - payment_date futura: Não deve aceitar atualização de paymente_date quando passado um valor maior que data atual.', async () => {
@@ -941,15 +944,15 @@ describe('TransactionServices - update()', () => {
       };
 
       const transactionResult = await transactionService.create(transactionPayload);
-      transactionResultId = transactionResult.rows[0].id;
+      transactionResultId = transactionResult.id;
 
       const bankAccountBalance = await pool.query(
         'SELECT balance FROM bank_accounts WHERE id = $1',
         [testData.bankAccountId],
       );
 
-      expect(transactionResult.rows[0].id).toBe(transactionResultId);
-      expect(transactionResult.rows[0].type).toBe('incomings');
+      expect(transactionResult.id).toBe(transactionResultId);
+      expect(transactionResult.type).toBe('incomings');
       expect(bankAccountBalance.rows[0].balance).toBe(400.00);
     });
 
@@ -968,9 +971,9 @@ describe('TransactionServices - update()', () => {
         [testData.bankAccountId],
       );
 
-      expect(result.rows[0].id).toBe(transactionResultId);
-      expect(result.rows[0].type).toBe('expenses');
-      expect(newBankAccountBalance.rows[0].balance).toBe(300.00);
+      expect(result.id).toBe(transactionResultId);
+      expect(result.type).toBe('expenses');
+      expect(newBankAccountBalance.rows[0].balance).toBe(200.00);
     });
 
     test('SUCESSO - incomings ou expenses para transfers: Exige o envio da conta de destino destiny_bank_account_id e aplica as regras de transferência.', async () => {
@@ -984,30 +987,22 @@ describe('TransactionServices - update()', () => {
 
       const result = await transactionService.update(payload);
 
-      const query = 'SELECT balance FROM bank_accounts WHERE id = $1';
-
-      expect(result.rows[0].id).toBe(transactionResultId);
-      expect(result.rows[0].type).toBe('transfers');
-      // Valida se o valor da conta voltou para o correto
-      const firstBankAccountBalance = await pool.query({
-        text: query,
-        value: [testData.bankAccountId],
-      });
-      expect(firstBankAccountBalance.rows[0].balance).toBe(300.00);
-
+      expect(result.id).toBe(transactionResultId);
+      expect(result.type).toBe('transfers');
 
       // validação de saldos de contas pois a transação base é completed
       // Saldo inicial conta de origem 300.00
+      const query = 'SELECT balance FROM bank_accounts WHERE id = $1';
       const bankAccountABalance = await pool.query({
         text: query,
-        value: [testData.bankAccountId],
+        values: [testData.bankAccountId],
       });
       expect(bankAccountABalance.rows[0].balance).toBe(200.00);
 
       // Saldo inical conta destino 100.00
       const bankAccountBBalance = await pool.query({
         text: query,
-        value: [testData.bankAccountIdB],
+        values: [testData.bankAccountIdB],
       });
       expect(bankAccountBBalance.rows[0].balance).toBe(200.00);
     });
@@ -1020,7 +1015,7 @@ describe('TransactionServices - update()', () => {
         type: 'transfers',
       };
 
-      await transactionService.update(payload)
+      await expect(transactionService.update(payload))
         .rejects
         .toThrow('O campo de conta de destino é obrigatório para alterar o tipo para transação');
     });

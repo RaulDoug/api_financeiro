@@ -67,7 +67,7 @@ export default class TransactionServices extends BaseServices {
       }
 
       // Lançamento transação pendente
-      if (data.status === 'pending') {
+      if (data.status === 'pending' || data.status === 'expired' || data.status === 'cancelled') {
         if (!data.due_date && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
           throw new Error('É obrigatório informar uma data de pagamento');
         }
@@ -109,13 +109,13 @@ export default class TransactionServices extends BaseServices {
 
     // Lançamento de despesas.
     if (data.type === 'expenses' && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
-      const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
+      const newBalance = Number(bankAccount.accountBalance) - Number(value);
 
       if (!data.due_date) {
         throw new Error('Os campos de data da transação e data de vencimento são obrigatórios');
       }
 
-      if (!bankAccount.rows[0].allow_negative_balance && newBalance < 0) {
+      if (!bankAccount.accountAllowNegative && newBalance < 0) {
         throw new Error('Conta bancária com saldo insuficente para realizar a transação');
       }
 
@@ -286,7 +286,7 @@ export default class TransactionServices extends BaseServices {
         if (i === 0 && data.first_this_month === true && Number(data.due_day) <= Number(purchaseDay)) {
           itemStatus = 'completed';
 
-          const newBalance = Number(bankAccount.rows[0].balance) - Number(value);
+          const newBalance = Number(bankAccount.accountBalance) - Number(value);
           await updateBankAccountBalanceHelper(data.bank_account_id, newBalance);
         }
 
@@ -311,7 +311,7 @@ export default class TransactionServices extends BaseServices {
 
     // Lançamento de entradas.
     if (data.type === 'incomings') {
-      const newBalance = Number(bankAccount.rows[0].balance) + Number(value);
+      const newBalance = Number(bankAccount.accountBalance) + Number(value);
 
       if (payMethodValues.rows[0].credit_card === true) {
         throw new Error('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito');
@@ -329,7 +329,7 @@ export default class TransactionServices extends BaseServices {
     if (data.type === 'transfers') {
       const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
       const bankAccountOutBalance = bankAccount; // Passa um nome mais descritivo para esta operação para o bank_account
-      const bankAccountDestinyBalance = await await bankAccountHelper(data.destiny_bank_account_id); // Pega o valor em conta da conta de destino
+      const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id); // Pega o valor em conta da conta de destino
 
       // Validação se a conta bancária de destino foi passada nos parâmetros
       if (!data.destiny_bank_account_id) {
@@ -357,9 +357,9 @@ export default class TransactionServices extends BaseServices {
           ...expenseTransactionPayload,
           transfers_id: transferId,
         };
-        const expenseAccountNewBalance = Number(bankAccountOutBalance.rows[0].balance) - Number(value); // Calcula o novo valor da conta de origem
+        const expenseAccountNewBalance = Number(bankAccountOutBalance.accountBalance) - Number(value); // Calcula o novo valor da conta de origem
         // Valida se a conta permite valor negativo ou se não permitir valida se tem saldo suficiente
-        if (!bankAccountOutBalance.rows[0].allow_negative_balance && expenseAccountNewBalance < 0) {
+        if (!bankAccountOutBalance.allowNegative && expenseAccountNewBalance < 0) {
           throw new Error('Conta bancária com saldo insuficente para realizar a transação');
         }
 
@@ -376,7 +376,7 @@ export default class TransactionServices extends BaseServices {
           ...incomingTransactionPayload,
           transfers_id: transferId,
         };
-        const incomingAccountNewBalance = Number(bankAccountDestinyBalance.rows[0].balance) + Number(value); // Novo valor conta de destino
+        const incomingAccountNewBalance = Number(bankAccountDestinyBalance.accountBalance) + Number(value); // Novo valor conta de destino
 
         await updateBankAccountBalanceHelper(data.destiny_bank_account_id, incomingAccountNewBalance); // Atualiza o saldo da conta de saída.
 
@@ -430,7 +430,7 @@ export default class TransactionServices extends BaseServices {
   };
 
   async update(data) {
-    const { user_id, wallet_id, transaction_id, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
+    const { user_id, wallet_id, transaction_id, fees, assessment, destiny_bank_account_id, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
 
     if (!user_id || !wallet_id || !transaction_id) {
       throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
@@ -465,7 +465,7 @@ export default class TransactionServices extends BaseServices {
 
     // Validar payment_date se foi enviada se sim validar se é valido
     const { today, formattedToday } = todayHelper();
-    if (updateFields.payment_date) {
+    if ('payment_date' in updateFields) {
       const paymentDateFormatted = new Date(updateFields.payment_date);
 
       if (paymentDateFormatted > today) {
@@ -505,7 +505,7 @@ export default class TransactionServices extends BaseServices {
     let finalDueDate = fieldsToUpdate.due_date || currentTransaction.due_date;
 
     // Validação payment_date
-    if (fieldsToUpdate.payment_date && finalStatus !== 'completed') {
+    if ('payment_date' in fieldsToUpdate && finalStatus !== 'completed') {
       finalStatus = 'completed';
       finalPaymentDate = fieldsToUpdate.payment_date;
     }
@@ -518,16 +518,16 @@ export default class TransactionServices extends BaseServices {
 
     // Validação de status enviado pelo usuário
     if ('status' in fieldsToUpdate) {
+      finalStatus = fieldsToUpdate.status;
+
       if (fieldsToUpdate.status === 'expired' && new Date(finalDueDate) > today) {
         throw new Error('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
       }
 
-      if (finalStatus === 'cancelled' && fieldsToUpdate.status === 'pending') {
-        if (new Date(finalDueDate) >= today) { finalStatus = 'peding'; }
-        if (new Date(finalDueDate) < today) { finalStatus = 'expired'; }
+      if (currentTransaction.status === 'cancelled' && fieldsToUpdate.status === 'pending') {
+        if (new Date(finalDueDate) >= new Date(formattedToday)) { finalStatus = 'pending'; }
+        if (new Date(finalDueDate) < new Date(formattedToday)) { finalStatus = 'expired'; }
       }
-
-      finalStatus = fieldsToUpdate.status;
     }
 
     // payment_date com base no status final
@@ -535,7 +535,7 @@ export default class TransactionServices extends BaseServices {
     if (currentTransaction.status !== 'completed' && finalStatus === 'completed') { finalPaymentDate = formattedToday; }
 
     // Validação do type transfer
-    if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account' in data)) {
+    if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account_id' in data)) {
       throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transação');
     }
 
@@ -579,10 +579,11 @@ export default class TransactionServices extends BaseServices {
       const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
 
       if (currentTransaction.status === 'expired') {
-        const fees = data.fees || 0;
-        const assessment = data.assessment || 0;
+        const feesToCalculate = fees || 0;
+        const assessmentToCalculate = assessment || 0;
 
-        finalValue = Number(finalValue) + Number(fees) + Number(assessment);
+        finalValue = Number(finalValue) + Number(feesToCalculate) + Number(assessmentToCalculate);
+        console.log(finalValue);
       }
 
       const newBalance = calculateBalance(accountBalance, finalValue, finalType);
@@ -611,7 +612,7 @@ export default class TransactionServices extends BaseServices {
       if ('bank_account_id' in fieldsToUpdate) {
         // Conta antiga
         const oldBankAccount = await bankAccountHelper(currentTransaction.bank_account_id);
-        const revertedOldAccountBalance = revertingBalance(oldBankAccount.accountBalance, currentTransaction.valeu, currentTransaction.type);
+        const revertedOldAccountBalance = revertingBalance(oldBankAccount.accountBalance, currentTransaction.value, currentTransaction.type);
 
         // Conta nova
         const newBalance = calculateBalance(accountBalance, finalValue, finalType);
@@ -636,7 +637,7 @@ export default class TransactionServices extends BaseServices {
         });
       }
 
-      if ('type' in fieldsToUpdate %% finalType === 'transfers') {
+      if ('type' in fieldsToUpdate && finalType === 'transfers') {
         const revertingTypeEffect = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
         const originAccountBalance = revertingTypeEffect - finalValue;
 
@@ -655,7 +656,7 @@ export default class TransactionServices extends BaseServices {
 
     for (const i of balanceOperations) {
       if (i.newBalance < 0 && i.allowNegative === false) {
-        throw new Error('Conta bancária sem saldo suficiente para realizar a transação')
+        throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
       }
     }
 
@@ -667,21 +668,17 @@ export default class TransactionServices extends BaseServices {
 
       await updateBankAccountBalanceHelper(i.accountId, i.newBalance);
     }
+
     // Função para montar a query de UPDATE
     let query;
     let payload = {
       ...fieldsToUpdate,
     };
 
-    function buildUpdatePayload(fields) {
-      for (const key of Object.keys(fields)) {
-        const objectValue = updateFields[key];
-
-        payload[key] = objectValue;
-      }
-
-      return payload;
-    }
+    // Valida se os valores finais mudaram e adicionas os que mudaram ao fieldsToUpdate
+    if (finalStatus !== currentTransaction.status) { payload.status = finalStatus; }
+    if (finalPaymentDate !== currentTransaction.payment_date) { payload.payment_date = finalPaymentDate; }
+    if (finalValue !== currentTransaction.value) { payload.value = finalValue; }
 
     function createUpdateQuery(updateFields, transactionId) {
       const { keys, values } = queryHelper(updateFields);
@@ -700,7 +697,6 @@ export default class TransactionServices extends BaseServices {
       };
     }
 
-    payload = buildUpdatePayload(fieldsToUpdate);
     query = createUpdateQuery(payload, transaction_id);
     const result = await pool.query(query);
 
