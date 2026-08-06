@@ -205,7 +205,7 @@ describe('TransactionServices - update()', () => {
         counterparty_id: testData.counterpartyPayerId,
         type: 'expenses',
         status: 'completed',
-        value: 100.00,
+        value: 50.00,
         description: 'Salário',
         due_date: '2026-08-10',
       };
@@ -216,8 +216,8 @@ describe('TransactionServices - update()', () => {
         [testData.bankAccountId],
       );
 
-      expect(transactionCompleted.status).toBe(100.00);
-      expect(bankAccount.rows[0].balance).toBe(200.00);
+      expect(transactionCompleted.status).toBe('completed');
+      expect(bankAccount.rows[0].balance).toBe(250.00);
 
       transactionCompletedId = transactionCompleted.id;
     });
@@ -248,14 +248,13 @@ describe('TransactionServices - update()', () => {
         value: 350.00,
       };
 
-      await transactionService.update(payload)
+      await expect(transactionService.update(payload))
         .rejects
         .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
     });
 
     test('SUCESSO - Ao alterar a bank_account_id de uma transação completed, deve estornar o saldo da conta antiga e debitar/creditar a conta nova.', async () => {
       // bankAccountIdB -> Balance = 100.00
-
       const paylaod = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
@@ -264,14 +263,22 @@ describe('TransactionServices - update()', () => {
       };
 
       const result = await transactionService.update(paylaod);
+
       const bankAccountBalance = await pool.query(
         'SELECT balance FROM bank_accounts WHERE id = $1',
         [testData.bankAccountIdB],
       );
 
+      const oldBankAccountBalanceReverted = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+
+
       expect(result.id).toBe(transactionCompletedId);
       expect(result.bank_account_id).toBe(testData.bankAccountIdB);
-      expect(bankAccountBalance.rows[0].balance).toBe(0.00);
+      expect(oldBankAccountBalanceReverted.rows[0].balance).toBe(300.00);
+      expect(bankAccountBalance.rows[0].balance).toBe(50.00);
     });
 
     test('FALHA - Ao alterar a bank_account_id de uma transação completed, deve falhar se a conta nova não tiver saldo/limite, e não deve alterar o saldo da conta antiga.', async () => {
@@ -294,7 +301,7 @@ describe('TransactionServices - update()', () => {
         bank_account_id: bankAccountWithoutBalanceId,
       };
 
-      await transactionService.update(payload)
+      await expect(transactionService.update(payload))
         .rejects
         .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
     });
@@ -913,7 +920,7 @@ describe('TransactionServices - update()', () => {
     });
   });
 
-  describe('Transições do tipo (type)', () => {
+  describe('Transições de types', () => {
     let transactionResultId;
 
     beforeEach(async () => {
@@ -966,7 +973,7 @@ describe('TransactionServices - update()', () => {
       expect(newBankAccountBalance.rows[0].balance).toBe(300.00);
     });
 
-    test('SUCESSO - incomings/expenses para transfers: Exige o envio da conta de destino (destiny_bank_account_id) e aplica as regras de transferência (tira de uma, põe na outra).', async () => {
+    test('SUCESSO - incomings ou expenses para transfers: Exige o envio da conta de destino destiny_bank_account_id e aplica as regras de transferência.', async () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,

@@ -438,7 +438,6 @@ export default class TransactionServices extends BaseServices {
 
     await userValidateHelper(user_id, wallet_id); // Valida se o usuário existe ou tem permissão para realizar a operação
 
-
     // Estado atual da transação no banco de dados
     const validateTransaction = await pool.query(
       'SELECT * FROM transactions WHERE id = $1',
@@ -450,6 +449,8 @@ export default class TransactionServices extends BaseServices {
       throw new Error('ID da transação informado é inválido ou inexistente');
     }
 
+    const currentTransaction = validateTransaction.rows[0];
+
     // Validação se foi passado algum campo para atualizar
     if (Object.keys(updateFields).length === 0) {
       throw new Error('Nenhum campo informado para atualização');
@@ -457,14 +458,13 @@ export default class TransactionServices extends BaseServices {
 
     await validateTransactionsFksHelper(data, true); // Validação das Fks para update
 
-    if (updateFields.value) {
-      if (updateFields.value < 0 || typeof updateFields.valor !== Number) {
-        throw new Error('Valor informado inválido, aceita apenas valores positivos acima de 0');
-      }
+    // Validar se foi passado um value válido maior que 0
+    if ('value' in updateFields && (updateFields.value <= 0 || typeof updateFields.value !== 'number')) {
+      throw new Error('Valor informado inválido, aceita apenas valores positivos acima de 0');
     }
 
     // Validar payment_date se foi enviada se sim validar se é valido
-    const { today, year, month, day } = todayHelper();
+    const { today, formattedToday } = todayHelper();
     if (updateFields.payment_date) {
       const paymentDateFormatted = new Date(updateFields.payment_date);
 
@@ -472,9 +472,6 @@ export default class TransactionServices extends BaseServices {
         throw new Error('Não é possível definir a data do pagamento para uma data maior que a atual');
       }
     }
-
-    // Compara os valores passados no update com os valores originais da transação
-    const currentTransaction = validateTransaction.rows[0];
 
     const fieldsToUpdate = {}; // Armazena campos que tem valor diferente da transação atual
 
@@ -492,18 +489,184 @@ export default class TransactionServices extends BaseServices {
       }
     }
 
-    const updateKeys = Object.keys(fieldsToUpdate); // Arrey das keys do fieldsToUpdate
-
-    if (updateKeys.length === 0) {
+    if (Object.keys(fieldsToUpdate).length === 0) {
       return {
         message: 'Nenhum valor foi alterado',
         item: currentTransaction,
       };
     }
 
-    // Função para validar status
-    const targetStatus = fieldsToUpdate.status || currentTransaction.status;
+    // Resolução de Estado Final
+    let finalStatus = currentTransaction.status;
+    let finalPaymentDate = currentTransaction.payment_date;
+    let finalValue = fieldsToUpdate.value || currentTransaction.value;
+    let finalBankAccountId = fieldsToUpdate.bank_account_id || currentTransaction.bank_account_id;
+    let finalType = fieldsToUpdate.type || currentTransaction.type;
+    let finalDueDate = fieldsToUpdate.due_date || currentTransaction.due_date;
 
+    // Validação payment_date
+    if (fieldsToUpdate.payment_date && finalStatus !== 'completed') {
+      finalStatus = 'completed';
+      finalPaymentDate = fieldsToUpdate.payment_date;
+    }
+
+    // Validação due_date
+    if (fieldsToUpdate.due_date && !('status' in fieldsToUpdate)) {
+      if (finalStatus === 'pending' && new Date(finalDueDate) < today) { finalStatus = 'expired'; }
+      if (finalStatus === 'expired' && new Date(finalDueDate) > today) { finalStatus = 'pending'; }
+    }
+
+    // Validação de status enviado pelo usuário
+    if ('status' in fieldsToUpdate) {
+      if (fieldsToUpdate.status === 'expired' && new Date(finalDueDate) > today) {
+        throw new Error('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
+      }
+
+      if (finalStatus === 'cancelled' && fieldsToUpdate.status === 'pending') {
+        if (new Date(finalDueDate) >= today) { finalStatus = 'peding'; }
+        if (new Date(finalDueDate) < today) { finalStatus = 'expired'; }
+      }
+
+      finalStatus = fieldsToUpdate.status;
+    }
+
+    // payment_date com base no status final
+    if (currentTransaction.status === 'completed' && finalStatus !== 'completed') { finalPaymentDate = null; }
+    if (currentTransaction.status !== 'completed' && finalStatus === 'completed') { finalPaymentDate = formattedToday; }
+
+    // Validação do type transfer
+    if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account' in data)) {
+      throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transação');
+    }
+
+    // Calculo de Operações de Saldo
+
+    const balanceOperations = [];
+
+    function calculateBalance(currentBalance, value, type) {
+      if (type === 'expenses') {
+        return Number(currentBalance) - Number(value);
+      }
+
+      if (type === 'incomings') {
+        return Number(currentBalance) + Number(value);
+      }
+    }
+
+    function revertingBalance(currentBalance, value, type) {
+      if (type === 'expenses') {
+        return Number(currentBalance) + Number(value);
+      }
+
+      if (type === 'incomings') {
+        return Number(currentBalance) - Number(value);
+      }
+    }
+
+    if (currentTransaction.status === 'completed' && finalStatus !== 'completed') {
+      const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id);
+
+      const newBalance = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
+
+      balanceOperations.push({
+        accountId: currentTransaction.bank_account_id,
+        newBalance: newBalance,
+        allowNegative: accountAllowNegative,
+      });
+    }
+
+    if (currentTransaction.status !== 'completed' && finalStatus === 'completed') {
+      const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+
+      if (currentTransaction.status === 'expired') {
+        const fees = data.fees || 0;
+        const assessment = data.assessment || 0;
+
+        finalValue = Number(finalValue) + Number(fees) + Number(assessment);
+      }
+
+      const newBalance = calculateBalance(accountBalance, finalValue, finalType);
+
+      balanceOperations.push({
+        accountId: finalBankAccountId,
+        newBalance: newBalance,
+        allowNegative: accountAllowNegative,
+      });
+    }
+
+    if (currentTransaction.status === 'completed' && finalStatus === 'completed') {
+      const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+
+      if ('value' in fieldsToUpdate && !('bank_account_id' in fieldsToUpdate) && !('type' in fieldsToUpdate)) {
+        const diff = finalValue - currentTransaction.value;
+        const newBalance = calculateBalance(accountBalance, diff, finalType);
+
+        balanceOperations.push({
+          accountId: finalBankAccountId,
+          newBalance: newBalance,
+          allowNegative: accountAllowNegative,
+        });
+      }
+
+      if ('bank_account_id' in fieldsToUpdate) {
+        // Conta antiga
+        const oldBankAccount = await bankAccountHelper(currentTransaction.bank_account_id);
+        const revertedOldAccountBalance = revertingBalance(oldBankAccount.accountBalance, currentTransaction.valeu, currentTransaction.type);
+
+        // Conta nova
+        const newBalance = calculateBalance(accountBalance, finalValue, finalType);
+
+        balanceOperations.push({
+          originAccountId: currentTransaction.bank_account_id,
+          originAccountBalance: revertedOldAccountBalance,
+          accountId: finalBankAccountId,
+          newBalance: newBalance,
+          allowNegative: accountAllowNegative,
+        });
+      }
+
+      if ('type' in fieldsToUpdate && finalType !== 'transfers') {
+        const revertingTypeEffect = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
+        const newBalance = calculateBalance(revertingTypeEffect, finalValue, finalType);
+
+        balanceOperations.push({
+          accountId: finalBankAccountId,
+          newBalance: newBalance,
+          allowNegative: accountAllowNegative,
+        });
+      }
+
+      if ('type' in fieldsToUpdate %% finalType === 'transfers') {
+        const revertingTypeEffect = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
+        const originAccountBalance = revertingTypeEffect - finalValue;
+
+        const destinyAccount = await bankAccountHelper(data.destiny_bank_account_id);
+        const destinyAccountBalance = destinyAccount.accountBalance + finalValue;
+
+        balanceOperations.push({
+          originAccountId: finalBankAccountId,
+          originAccountBalance: originAccountBalance,
+          accountId: data.destiny_bank_account_id,
+          newBalance: destinyAccountBalance,
+          allowNegative: destinyAccount.accountAllowNegative,
+        });
+      }
+    }
+
+    for (const i of balanceOperations) {
+      if (i.newBalance < 0 && i.allowNegative === false) {
+        throw new Error('Conta bancária sem saldo suficiente para realizar a transação')
+      }
+    }
+
+    // Execução no banco
+    for (const i of balanceOperations) {
+      if ('originAccountId' in i && 'originAccountBalance' in i) {
+        await updateBankAccountBalanceHelper(i.originAccountId, i.originAccountBalance);
+      }
+
+      await updateBankAccountBalanceHelper(i.accountId, i.newBalance);
+    }
     // Função para montar a query de UPDATE
     let query;
     let payload = {
@@ -537,27 +700,10 @@ export default class TransactionServices extends BaseServices {
       };
     }
 
-    // Atualização de campos simples
-    const simpleUpdatedFields = ['description', 'category_id', 'pay_methods_id', 'counterparty_id', 'purchase_date'];
-
-    // Validação se o fieldsToUpdate contém somente campos de atualização siples
-    const isOnlySimpleFields = updateKeys.every(key => simpleUpdatedFields.includes(key));
-
-    if (isOnlySimpleFields && targetStatus !== 'completed') {
-      payload = buildUpdatePayload(fieldsToUpdate);
-    }
-
-
-
-
-
-
-
-
-
+    payload = buildUpdatePayload(fieldsToUpdate);
     query = createUpdateQuery(payload, transaction_id);
     const result = await pool.query(query);
 
     return result.rows[0];
   };
-};
+}

@@ -22,11 +22,13 @@ export const payMethodValuesHelper = async (payMethodsId) => {
 
 export const todayHelper = () => {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const year = today.getFullYear();
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
+  const formattedToday = `${year}-${month}-${day}`;
 
-  return { today, year, month, day };
+  return { today, year, month, day, formattedToday };
 };
 
 export const queryHelper = (payload) => {
@@ -39,10 +41,14 @@ export const queryHelper = (payload) => {
 };
 
 export const bankAccountHelper = async (bankAccountId) => {
-  return await pool.query(
+  const bankAccount = await pool.query(
     'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1',
     [bankAccountId],
   );
+  const accountBalance = bankAccount.rows[0].balance;
+  const accountAllowNegative = bankAccount.rows[0].allow_negative_balance;
+
+  return { accountBalance, accountAllowNegative };
 };
 
 export const validateTransactionsFksHelper = async (data, isUpdate = false) => {
