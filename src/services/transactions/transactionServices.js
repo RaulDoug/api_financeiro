@@ -430,7 +430,7 @@ export default class TransactionServices extends BaseServices {
   };
 
   async update(data) {
-    const { user_id, wallet_id, transaction_id, fees, assessment, destiny_bank_account_id, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
+    const { user_id, wallet_id, transaction_id, fees, assessment, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
 
     if (!user_id || !wallet_id || !transaction_id) {
       throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
