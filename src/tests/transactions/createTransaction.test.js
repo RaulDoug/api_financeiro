@@ -350,7 +350,7 @@ describe('TransactionServices - create()', () => {
       expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
       expect(result.rows[2].value).toBe(150.00);
       expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
-      expect(result.rows[1].status).toBe('pending');
+      expect(result.rows[2].status).toBe('pending');
 
       vi.useRealTimers();
     });
