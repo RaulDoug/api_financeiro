@@ -1020,4 +1020,399 @@ describe('TransactionServices - update()', () => {
         .toThrow('O campo de conta de destino é obrigatório para alterar o tipo para transação');
     });
   });
+
+  describe('TransactionServices - udpate: Recorrente E cartão de Crédito', () => {
+    async function remainderInstallments(installmenteGroupId) {
+      return await pool.query(
+        'SELECT * FROM transactions WHERE installments_group_id = $1',
+        [installmenteGroupId],
+      );
+    }
+
+    async function accountBalance(bankAccountId) {
+      return await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [bankAccountId],
+      );
+    }
+
+    describe('Cartão de Crédito - Parcelas com isntallments_group_id', () => {
+      let creditCardData;
+      beforeEach(async () => {
+        // Crinado transação em cartão de crédito
+        const creditCardPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId, // Saldo 300.00
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          value: 150.00,
+          description: 'Compra no cartão de crédito',
+          purchase_date: '2026-07-15',
+          installments_number: 3,
+        };
+
+        const creditCardResult = await transactionService.create(creditCardPayload);
+        const installmenteGroupId = creditCardResult.rows[0].installments_group_id;
+        expect(creditCardResult.rows.length).toBe(3);
+        expect(creditCardResult.rows[0].value).toBe(50.00);
+        expect(creditCardResult.rows[1].value).toBe(50.00);
+        expect(creditCardResult.rows[2].value).toBe(50.00);
+
+        const firstInstallmentId = creditCardResult.rows[0].id;
+        const secondInstallmentId = creditCardResult.rows[1].id;
+
+        creditCardData = {
+          firstInstallmentId: firstInstallmentId,
+          secondInstallmentId: secondInstallmentId,
+          installmenteGroupId: installmenteGroupId,
+        };
+      });
+
+      test('SUCESSO - Quitar parcela individual pending -> completed sem afetar as demais', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'completed',
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallmentsQuery = remainderInstallments(creditCardData.installmenteGroupId);
+        const accountBalanceQuery = accountBalance(testData.bankAccountId);
+
+        expect(result.status).toBe('completed');
+        expect(remainderInstallmentsQuery.rows[1].status).toBe('pending');
+        expect(remainderInstallmentsQuery.rows[2].status).toBe('pending');
+        expect(accountBalanceQuery.rows[0].balance).toBe(250.00);
+      });
+
+      test('SUCESSO - Quitar todas as parcelas sequencialmente e validar o saldo acumulado', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'completed',
+          all_installments: true,
+        };
+
+        const result = await transactionService.update(payload);
+        const accountBalanceQuery = accountBalance(testData.bankAccountId);
+
+        expect(result.rows[0].status).toBe('completed');
+        expect(result.rows[1].status).toBe('completed');
+        expect(result.rows[2].status).toBe('completed');
+        expect(accountBalanceQuery.rows[0].balance).toBe(150.00);
+      });
+
+      test('SUCESSO - Alterar o valor de UMA parcela pendente sem afetar as demais parcelas do grupo', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.secondInstallmentId,
+          value: 100.00,
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallmentsQuery = remainderInstallments(creditCardData.installmenteGroupId);
+
+        expect(result.value).toBe(80.00);
+        expect(remainderInstallmentsQuery.rows[1].value).toBe(50.00);
+        expect(remainderInstallmentsQuery.rows[2].value).toBe(50.00);
+      });
+
+      test('SUCESSO - Alterar o valor de uma parcela completed recalcula o saldo apenas para a diferença daquela parcela', async () => {
+        // Atuliazando parcela para completed:
+        const payloadCompleted = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'completed',
+        };
+
+        const resultCompleted = await transactionService.update(payloadCompleted);
+        const remainderInstallmentsQuery = remainderInstallments(creditCardData.installmenteGroupId);
+        const accountBalanceQuery = accountBalance(testData.bankAccountId);
+
+        expect(resultCompleted.status).toBe('completed');
+        expect(resultCompleted.value).toBe(50.00);
+        expect(remainderInstallmentsQuery.rows[1].status).toBe('pending');
+        expect(remainderInstallmentsQuery.rows[2].status).toBe('pending');
+        expect(accountBalanceQuery.rows[0].balance).toBe(250.00);
+
+        // Alterando valor desta parcela
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          value: 100.00,
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallmentsQueryFinal = remainderInstallments(creditCardData.installmenteGroupId);
+        const accountBalanceQueryFinal = accountBalance(testData.bankAccountId);
+
+        expect(resultCompleted.status).toBe('completed');
+        expect(result.value).toBe(100.00);
+        expect(remainderInstallmentsQueryFinal.rows[1].value).toBe(50.00);
+        expect(remainderInstallmentsQueryFinal.rows[2].value).toBe(50.00);
+        expect(accountBalanceQueryFinal.rows[0].balance).toBe(200.00);
+      });
+
+      test('SUCESSO - Estorno de parcela de cartão completed -> pending)', async () => {
+        // Atuliazando parcela para completed:
+        const payloadCompleted = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'completed',
+        };
+
+        const resultCompleted = await transactionService.update(payloadCompleted);
+        const accountBalance = accountBalance(testData.bankAccountId);
+
+        expect(resultCompleted.status).toBe('completed');
+        expect(accountBalance.rows[0].balance).toBe(250.00);
+
+        // Mudando status da parcela
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'pending',
+        };
+
+        const result = await transactionService.update(payload);
+        const accountBalanceQuery = accountBalance(testData.bankAccountId);
+        const remainderInstallments = remainderInstallments(creditCardData.installmenteGroupId);
+
+        expect(result.status).toBe('pending');
+        expect(result.payment_data).toBe(null);
+        expect(accountBalanceQuery.rows[0].balance).toBe(300.00);
+        expect(remainderInstallments.rows[1].status).toBe('pending');
+        expect(remainderInstallments.rows[2].status).toBe('pending');
+      });
+
+      test('SUCESSO - Trocar a bank_account_id de uma parcela completed estorno na conta antiga, débito na nova', async () => {
+        // Atuliazando parcela para completed:
+        const payloadCompleted = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          status: 'completed',
+        };
+
+        const resultCompleted = await transactionService.update(payloadCompleted);
+        const accountABalance = accountBalance(testData.bankAccountId);
+
+        expect(resultCompleted.status).toBe('completed');
+        expect(resultCompleted.bank_account_id).toBe(testData.bankAccountId);
+        expect(accountABalance.rows[0].balance).toBe(250.00);
+
+        // Mudando bank_account
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          bank_account_id: testData.bankAccountIdB,
+        };
+
+        const result = await transactionService.update(payload);
+        const accountANewBalance = accountBalance(testData.bankAccountId);
+        const accountBNewBalance = accountBalance(testData.bankAccountIdB);
+
+        expect(result.bank_account_id).toBe(testData.bankAccountIdB);
+        expect(accountANewBalance.rows[0].balance).toBe(300.00);
+        expect(accountBNewBalance.rows[0].balance).toBe(50.00);
+
+        //verificando demais parcelas
+        const remainderInstallments = remainderInstallments(creditCardData.installmenteGroupId);
+        expect(remainderInstallments.rows[1].bank_account_id).toBe(testData.bankAccountId);
+        expect(remainderInstallments.rows[2].bank_account_id).toBe(testData.bankAccountId);
+      });
+
+      test('FALHA - Saldo insuficiente ao quitar parcela de cartão', async () => {
+        const newBankAccountPayload = {
+          wallet_id: testData.walletId,
+          bank_name: 'Banco zerado',
+          balance: 0,
+        };
+
+        const newBankAccountResult = await transactionService.create(newBankAccountPayload);
+        expect(newBankAccountResult.balance).toBe(0);
+
+        // Quitar parcela
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          bank_account_id: newBankAccountResult.id,
+          status: 'completed',
+        };
+
+        await expect(transactionService.update(payload))
+          .rejects
+          .toThrow('Conta bancária com saldo insuficente para realizar a transação');
+      });
+
+      test('SUCESSO - O invoice_id de cada parcela permanece inalterado após update de campos simples', async () => {
+        const invoiceId = await pool.query(
+          'SELECT invoice_id FROM transactions WHERE id = $1',
+          [creditCardData.firstInstallmentId],
+        );
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCardData.firstInstallmentId,
+          description: 'Nova descrição',
+          categorie_id: testData.categorieExpenseIdB,
+        };
+
+        const result = await transactionService.update(payload);
+        expect(result.description).toBe('Nova descrição');
+        expect(result.categorie_id).toBe(testData.categorieExpenseIdB);
+
+        const remainderInstallments = remainderInstallments(creditCardData.installmenteGroupId);
+        expect(remainderInstallments.rows[0].invoice_id).toBe(invoiceId.rows[0].invoice_id);
+        expect(remainderInstallments.rows[1].invoice_id).toBe(invoiceId.rows[0].invoice_id);
+        expect(remainderInstallments.rows[2].invoice_id).toBe(invoiceId.rows[0].invoice_id);
+      });
+    });
+
+    describe('Transações Recorrentes is_recurrent + installments_group_id)', () => {
+      let recurrentData;
+      beforeEach(async () => {
+        const payload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          value: 10.00,
+          description: 'Streaming',
+          purchase_date: '2026-07-15',
+          due_day: 15,
+          installments_number: 3,
+          is_recurrent: true,
+        };
+
+        const result = await transactionService.create(payload);
+        const installmenteGroupId = result.rows[0].installments_group_id;
+        expect(result.rows.length).toBe(3);
+
+        // Parcela 1
+        expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+        expect(result.rows[0].value).toBe(10.00);
+
+        const firstInstallmentId = result.rows[0].id;
+        const secondInstallmentId = result.rows[1].id;
+
+        recurrentData = {
+          firstRecurrentId: firstInstallmentId,
+          secondRecurrentId: secondInstallmentId,
+          installmenteGroupId: installmenteGroupId,
+        };
+      });
+
+      test('SUCESSO - Quitar parcela recorrente individual sem afetar as demais', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          status: 'completed',
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallments = await remainderInstallments(recurrentData.installmenteGroupId);
+        const accountBalance = await accountBalance(testData.bankAccountId);
+
+        expect(result.status).toBe('completed');
+        expect(result.payment_data).not.toBeNull();
+        expect(remainderInstallments.rows[1].status).toBe('pending');
+        expect(remainderInstallments.rows[2].status).toBe('pending');
+        expect(accountBalance.rows[0].balance).toBe(290.00);
+      });
+
+      test('SUCESSO - Alterar valor de UMA parcela recorrente sem afetar as demais', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          value: 15.00,
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallments = await remainderInstallments(recurrentData.installmenteGroupId);
+
+        expect(result.value).toBe(15.00);
+        expect(remainderInstallments.rows[0].value).toBe(10.00);
+        expect(remainderInstallments.rows[2].value).toBe(10.00);
+      });
+
+      test('SUCESSO - Alterar due_date de parcela recorrente pendente para data passada -> status vira expired', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          due_date: '2026-07-01',
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallments = await remainderInstallments(recurrentData.installmenteGroupId);
+
+        expect((result.due_date).toISOString().split('T')[0]).toBe('2026-07-01');
+        expect(result.status).toBe('expired');
+        expect(remainderInstallments.rows[0].status).toBe('pending');
+        expect(remainderInstallments.rows[2].status).toBe('pending');
+      });
+
+      test('SUCESSO - Alterar due_date de parcela recorrente vencida para data futura -> status volta a pending', async () => {
+        const payloadExpired = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          due_date: '2026-07-01',
+        };
+
+        const resultExpired = await transactionService.update(payloadExpired);
+
+        expect((resultExpired.due_date).toISOString().split('T')[0]).toBe('2026-07-01');
+        expect(resultExpired.status).toBe('expired');
+
+        // Alterando due_date uma data maior que a atual
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          due_date: '2026-07-20',
+        };
+
+        const result = await transactionService.update(payload);
+
+        expect((result.due_date).toISOString().split('T')[0]).toBe('2026-07-20');
+        expect(result.status).toBe('pending');
+      });
+
+      test('SUCESSO - Cancelar parcela recorrente individual sem impactar as demais', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: recurrentData.secondRecurrentId,
+          status: 'cancelled',
+        };
+
+        const result = await transactionService.update(payload);
+        const remainderInstallments = await remainderInstallments(recurrentData.installmenteGroupId);
+
+        expect(result.status).toBe('cancelled');
+        expect(remainderInstallments.rows[0].status).toBe('pending');
+        expect(remainderInstallments.rows[2].status).toBe('pending');
+      });
+    });
+  });
 });
