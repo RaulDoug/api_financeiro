@@ -168,13 +168,14 @@ CREATE TABLE transactions (
   invoice_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT now(),
   updater_user_id UUID,
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ,
   CONSTRAINT fk_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT fk_t_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_pay_method FOREIGN KEY (pay_methods_id) REFERENCES pay_methods(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_counterparty FOREIGN KEY (counterparty_id) REFERENCES counterparties(id) ON DELETE SET NULL,
-  CONSTRAINT fk_t_user FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT fk_t_user FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_t_user FOREIGN KEY (updater_user_id) REFERENCES users(id) ON DELETE CASCADE,
 );
 
 -------------------------------------------------
