@@ -175,7 +175,7 @@ CREATE TABLE transactions (
   CONSTRAINT fk_t_pay_method FOREIGN KEY (pay_methods_id) REFERENCES pay_methods(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_counterparty FOREIGN KEY (counterparty_id) REFERENCES counterparties(id) ON DELETE SET NULL,
   CONSTRAINT fk_t_user FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_t_user FOREIGN KEY (updater_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_t_updater_user FOREIGN KEY (updater_user_id) REFERENCES users(id) ON DELETE CASCADE,
 );
 
 -------------------------------------------------
