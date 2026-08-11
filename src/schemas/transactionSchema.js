@@ -20,6 +20,7 @@ const valueValidation = z.number().positive('O valor deve ser maior que zero');
 const descriptionValidation = z.string().min(3, 'A descrição deve conter no mínimo 3 caracteres').max(255);
 const dueDateValidation = z.coerce.date({ message: 'Data inválida' });
 const paymentDateValidation = z.coerce.date({ message: 'Data inválida' }).max(new Date(), { message: 'A data de pagamento não pode ser uma data futura' }).optional();
+const purchaseDateValidation = z.coerce.date({ message: 'Data inválida' }).max(new Date(), { message: 'A data da compra não pode ser uma data futura' }).optional();
 
 //.default(() => new Date())
 
@@ -34,6 +35,7 @@ export const createSchema = z.object({
   status: statusValidation,
   value: valueValidation,
   description: descriptionValidation,
+  purchase_date: purchaseDateValidation.optional(),
   due_date: dueDateValidation,
   payment_date: paymentDateValidation.optional(),
 });

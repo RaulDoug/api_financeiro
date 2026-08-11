@@ -35,7 +35,7 @@ CREATE TABLE users (
 );
 
 -------------------------------------------------
--- Tabela de cateiras (wallets)
+-- Tabela de carteiras (wallets)
 -------------------------------------------------
 CREATE TABLE wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,7 +109,7 @@ CREATE TABLE counterparties (
   name VARCHAR(255) NOT NULL,
   type counterparties_types NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
-  CONSTRAINT fk_couter_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_couterparty_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT uq_counterparties_wallet_display UNIQUE (wallet_id, display_id)
 );
 
@@ -164,18 +164,18 @@ CREATE TABLE transactions (
   payment_date DATE,
   installments_group_id UUID DEFAULT gen_random_uuid(),
   current_installment INTEGER,
-  transfers_id UUID DEFAULT gen_random_uuid(),
+  transfers_id UUID,
   invoice_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT now(),
   updater_user_id UUID,
   updated_at TIMESTAMPTZ,
   CONSTRAINT fk_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
-  CONSTRAINT fk_t_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE SET NULL,
-  CONSTRAINT fk_t_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
-  CONSTRAINT fk_t_pay_method FOREIGN KEY (pay_methods_id) REFERENCES pay_methods(id) ON DELETE SET NULL,
-  CONSTRAINT fk_t_counterparty FOREIGN KEY (counterparty_id) REFERENCES counterparties(id) ON DELETE SET NULL,
+  CONSTRAINT fk_t_bank_account FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_t_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_t_pay_method FOREIGN KEY (pay_methods_id) REFERENCES pay_methods(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_t_counterparty FOREIGN KEY (counterparty_id) REFERENCES counterparties(id) ON DELETE RESTRICT,
   CONSTRAINT fk_t_user FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_t_updater_user FOREIGN KEY (updater_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_t_updater_user FOREIGN KEY (updater_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -------------------------------------------------

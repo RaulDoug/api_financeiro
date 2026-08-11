@@ -37,8 +37,6 @@ export default class TransactionServices extends BaseServices {
 
     const { year, month, day } = todayHelper(); // Data atual para validação
 
-
-
     if (!data.purchase_date) { data.purchase_date = `${year}-${month}-${day}`; } // Validando se foi prenchido o dia da compra
 
     // Função responsável por montar o payload (É chamada dentro das validações e a propriedade é passada de acordo com retorno da validação)
@@ -127,6 +125,10 @@ export default class TransactionServices extends BaseServices {
       payload = buildPayload(data.bank_account_id);
     }
 
+    if (data.is_recurrent === true && payMethodValues.rows[0].credit_card === true && data.type === 'incomings') {
+      throw new Error('Lançamento de entradas como recorrente não é permitido para o método de pagamento definido como cartão de crédito');
+    }
+
     // Lançamento de despesas com a forma de pagamento definida como credit_card
     if (payMethodValues.rows[0].credit_card === true) {
       data.status = 'pending'; // Definie o status para pendente
@@ -145,7 +147,7 @@ export default class TransactionServices extends BaseServices {
       let invoiceMonth = Number(purchaseMonth) + 1;
 
       // Validando se a compra foi feita antes do fechamento da fatura
-      if (purchaseDay < payMethodClosingDay && purchaseMonth === month) {
+      if (Number(purchaseDay) < payMethodClosingDay && purchaseMonth === month) {
         invoiceMonth = purchaseMonth;
       }
 
@@ -243,7 +245,7 @@ export default class TransactionServices extends BaseServices {
 
     };
 
-    // Lançamento de despesa definida como recorrente
+    // Lançamento de transação definida como recorrente
     if (data.is_recurrent === true) {
       if (!data.installments_number || !data.due_day) {
         throw new Error('Em uma transação recorrente os campos de installments_number e due_day são obrigatórios');
@@ -251,6 +253,10 @@ export default class TransactionServices extends BaseServices {
 
       if (data.installments_number < 2) {
         throw new Error('O valor de installments_number não pode ser menor que 2 em trasações definidas como recorrente');
+      }
+
+      if (payMethodValues.rows[0].credit_card === true) {
+        throw new Error('Lançamento de entradas como recorrente não é permitido para o método de pagamento definido como cartão de crédito');
       }
 
       data.status = 'pending'; // Define como pendente a transação
@@ -286,8 +292,15 @@ export default class TransactionServices extends BaseServices {
         if (i === 0 && data.first_this_month === true && Number(data.due_day) <= Number(purchaseDay)) {
           itemStatus = 'completed';
 
-          const newBalance = Number(bankAccount.accountBalance) - Number(value);
-          await updateBankAccountBalanceHelper(data.bank_account_id, newBalance);
+          if (data.type === 'incomings') {
+            const newBalance = Number(bankAccount.accountBalance) + Number(value);
+            await updateBankAccountBalanceHelper(data.bank_account_id, newBalance);
+          };
+
+          if (data.type === 'expenses') {
+            const newBalance = Number(bankAccount.accountBalance) - Number(value);
+            await updateBankAccountBalanceHelper(data.bank_account_id, newBalance);
+          }
         }
 
         payload = {
@@ -327,14 +340,14 @@ export default class TransactionServices extends BaseServices {
 
     // Lançamento de transferência
     if (data.type === 'transfers') {
-      const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
-      const bankAccountOutBalance = bankAccount; // Passa um nome mais descritivo para esta operação para o bank_account
-      const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id); // Pega o valor em conta da conta de destino
-
       // Validação se a conta bancária de destino foi passada nos parâmetros
       if (!data.destiny_bank_account_id) {
         throw new Error('Nenhuma conta selecionada para receber a transferência');
       }
+
+      const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
+      const bankAccountOutBalance = bankAccount; // Passa um nome mais descritivo para esta operação para o bank_account
+      const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id); // Pega o valor em conta da conta de destino
 
       // Validação para confirmar se a conta de origem e conta de destino não são as mesmas
       if (data.bank_account_id === data.destiny_bank_account_id) {

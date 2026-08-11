@@ -260,6 +260,60 @@ describe('TransactionServices - create()', () => {
       expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-15');
     });
 
+    test('Deve conseguir criar uma entrada recorrente quando passado o parâmetro first_this_mount = true. O saldo deve alterar', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        value: 150.00,
+        description: 'Entrada recorrente',
+        purchase_date: '2026-07-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+        first_this_month: true,
+      };
+
+      const result = await transactionService.create(payload);
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(150.00);
+      expect(result.rows[0].type).toBe('incomings');
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-07-15');
+      expect(result.rows[0].status).toBe('completed');
+
+      const bankAccountNewBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(bankAccountNewBalance.rows[0].balance).toBe(450.00);
+
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(150.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-08-15');
+      expect(result.rows[1].status).toBe('pending');
+
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(150.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-09-15');
+      expect(result.rows[2].status).toBe('pending');
+
+      vi.useRealTimers();
+    });
+
     test('Deve conseguir criar transações de assinatura com forma de pagamento definida como cartão de crédito marcando todas com o mesmo installments_group_id sem alterar o valor unitário', async () => {
       const payload = {
         wallet_id: testData.walletId,
@@ -408,6 +462,50 @@ describe('TransactionServices - create()', () => {
       expect(bankAccountNewBalance.rows[0].balance).toBe(300.00);
 
       vi.useRealTimers();
+    });
+
+    test('Deve conseguir lançar uma transação como recorrente com o status pending sem alterar o saldo da conta bancária', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 1000.00,
+        description: 'Aluguél',
+        purchase_date: '2026-07-08',
+        due_day: 8,
+        installments_number: 3,
+        is_recurrent: true,
+      };
+
+      const result = await transactionService.create(payload);
+
+      const installmenteGroupId = result.rows[0].installments_group_id;
+
+      expect(result.rows.length).toBe(3);
+
+      // Parcela 1
+      expect(result.rows[0].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[0].value).toBe(1000.00);
+      expect(result.rows[0].due_date.toISOString().slice(0, 10)).toBe('2026-08-08');
+      // Parcela 2
+      expect(result.rows[1].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[1].value).toBe(1000.00);
+      expect(result.rows[1].due_date.toISOString().slice(0, 10)).toBe('2026-09-08');
+      // Parcela 3
+      expect(result.rows[2].installments_group_id).toBe(installmenteGroupId);
+      expect(result.rows[2].value).toBe(1000.00);
+      expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-08');
+
+      const accountBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+
+      expect(accountBalance.rows[0].balance).toBe(300.00);
     });
   });
 
@@ -563,6 +661,26 @@ describe('TransactionServices - create()', () => {
 
       expect(() => createSchema.parse(payload))
         .toThrow('A data de pagamento não pode ser uma data futura');
+    });
+
+    test('Deve rejeitar transação que receba uma purchase_date maior que a data atual', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        status: 'pending',
+        value: 100.00,
+        description: 'Salário',
+        due_date: '2026-08-10',
+        purchase_date: '2100-08-10',
+      };
+
+      expect(() => createSchema.parse(payload))
+        .toThrow('A data da compra não pode ser uma data futura');
     });
   });
 
@@ -930,6 +1048,28 @@ describe('TransactionServices - create()', () => {
         .toThrow('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito');
     });
 
+    test('Não deve criar uma transação recorrente do tipo incomings com o método de pagamento com credit_card = true', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'incomings',
+        value: 100.00,
+        description: 'Recorrente',
+        purchase_date: '2026-07-15',
+        due_day: 15,
+        installments_number: 3,
+        is_recurrent: true,
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Lançamento de entradas como recorrente não é permitido para o método de pagamento definido como cartão de crédito');
+    });
+
     test('Deve lançar a transação na fatura correta de acordo com a data da compra e os parâmetos de due_day e closing_day passados no pay_method com a opção credit_card como true', async () => {
       // closing_day = 2 | due_day = 9
       // Neste caso se a compra for feita no dia 01/07 ele deve entrar na fatura que vence 09/07 e não na fatura de 09/08
@@ -1190,6 +1330,26 @@ describe('TransactionServices - create()', () => {
       expect(result.rows[2].status).toBe('pending');
 
       vi.useRealTimers();
+    });
+
+    test('Não deve criar uma transferência sem enviar destiny_bank_account_id', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'transfers',
+        status: 'pending',
+        value: 100.00,
+        description: 'Transferencia entre contas',
+        due_date: '2026-08-10',
+      };
+
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Nenhuma conta selecionada para receber a transferência');
     });
   });
 });
