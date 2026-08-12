@@ -509,6 +509,10 @@ export default class TransactionServices extends BaseServices {
       };
     }
 
+    if (currentTransaction.status === 'cancelled' && (!fieldsToUpdate.status || fieldsToUpdate.status === 'cancelled') && 'due_date' in fieldsToUpdate) {
+      throw new Error('Transação cancelada, nenhuma alteração será aplicada a não ser que altera o status da transação');
+    }
+
     // Resolução de Estado Final
     let finalStatus = currentTransaction.status;
     let finalPaymentDate = currentTransaction.payment_date;
@@ -549,7 +553,7 @@ export default class TransactionServices extends BaseServices {
 
     // Validação do type transfer
     if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account_id' in data)) {
-      throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transação');
+      throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transferência');
     }
 
     // Calculo de Operações de Saldo
