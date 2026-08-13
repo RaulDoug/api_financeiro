@@ -537,9 +537,15 @@ export default class TransactionServices extends BaseServices {
     if ('status' in fieldsToUpdate) {
       finalStatus = fieldsToUpdate.status;
 
-      if (fieldsToUpdate.status === 'expired' && new Date(finalDueDate) > today) {
+      if (finalStatus === 'expired' && (new Date(finalDueDate) > today || !('due_date' in fieldsToUpdate))) {
         throw new Error('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
       }
+
+      if (currentTransaction.status === 'expired' && (!('due_date' in fieldsToUpdate) || finalDueDate < new Date(formattedToday))) {
+        throw new Error('A transação não pode ser pendente quando o dia de vencimento for menor que a data atual');
+      }
+
+      if (finalStatus === 'pending' && new Date(finalDueDate) < today) { finalStatus = 'expired'; }
 
       if (currentTransaction.status === 'cancelled' && fieldsToUpdate.status === 'pending') {
         if (new Date(finalDueDate) >= new Date(formattedToday)) { finalStatus = 'pending'; }
@@ -600,7 +606,6 @@ export default class TransactionServices extends BaseServices {
         const assessmentToCalculate = assessment || 0;
 
         finalValue = Number(finalValue) + Number(feesToCalculate) + Number(assessmentToCalculate);
-        console.log(finalValue);
       }
 
       const newBalance = calculateBalance(accountBalance, finalValue, finalType);
