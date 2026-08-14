@@ -369,6 +369,7 @@ export default class TransactionServices extends BaseServices {
         const expensePayloadWithId = {
           ...expenseTransactionPayload,
           transfers_id: transferId,
+          type: 'transfer_out',
         };
         const expenseAccountNewBalance = Number(bankAccountOutBalance.accountBalance) - Number(value); // Calcula o novo valor da conta de origem
         // Valida se a conta permite valor negativo ou se não permitir valida se tem saldo suficiente
@@ -388,6 +389,7 @@ export default class TransactionServices extends BaseServices {
         const incomingPayloadWithId = {
           ...incomingTransactionPayload,
           transfers_id: transferId,
+          type: 'transfer_in',
         };
         const incomingAccountNewBalance = Number(bankAccountDestinyBalance.accountBalance) + Number(value); // Novo valor conta de destino
 
@@ -412,6 +414,7 @@ export default class TransactionServices extends BaseServices {
         const expensePayloadWithId = {
           ...expenseTransactionPayload,
           transfers_id: transferId,
+          type: 'transfer_out',
         };
         const expenseQuery = createQuery(expensePayloadWithId);
         const expenseResult = await pool.query(expenseQuery);
@@ -421,6 +424,7 @@ export default class TransactionServices extends BaseServices {
         const incomingPayloadWithId = {
           ...incomingTransactionPayload,
           transfers_id: transferId,
+          type: 'transfer_in',
         };
         const incomingQuery = createQuery(incomingPayloadWithId);
         const incomingResult = await pool.query(incomingQuery);
@@ -443,7 +447,16 @@ export default class TransactionServices extends BaseServices {
   };
 
   async update(data) {
-    const { user_id, wallet_id, transaction_id, fees, assessment, ...updateFields } = data; // Separa os valores bases passados dos valores a se atualizar
+    const {
+      user_id,
+      wallet_id,
+      transaction_id,
+      fees,
+      assessment,
+      destiny_bank_account_id,
+      all_installments,
+      ...updateFields
+    } = data; // Separa os valores bases passados dos valores a se atualizar
 
     if (!user_id || !wallet_id || !transaction_id) {
       throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
@@ -520,6 +533,7 @@ export default class TransactionServices extends BaseServices {
     let finalBankAccountId = fieldsToUpdate.bank_account_id || currentTransaction.bank_account_id;
     let finalType = fieldsToUpdate.type || currentTransaction.type;
     let finalDueDate = fieldsToUpdate.due_date || currentTransaction.due_date;
+    let finalPayMethod = fieldsToUpdate.pay_methods_id || currentTransaction.pay_methods_id;
 
     // Validação payment_date
     if ('payment_date' in fieldsToUpdate && finalStatus !== 'completed') {
@@ -541,7 +555,10 @@ export default class TransactionServices extends BaseServices {
         throw new Error('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
       }
 
-      if (currentTransaction.status === 'expired' && (!('due_date' in fieldsToUpdate) || finalDueDate < new Date(formattedToday))) {
+      // Validação de alteração de status expired para pending
+      const isExpiredToPending = currentTransaction.status === 'expired' && fieldsToUpdate.status === 'pending';
+      const isMissingOrPastDueDate = !('due_date' in fieldsToUpdate) || new Date(finalDueDate) < today;
+      if (isExpiredToPending && isMissingOrPastDueDate) {
         throw new Error('A transação não pode ser pendente quando o dia de vencimento for menor que a data atual');
       }
 
@@ -563,25 +580,24 @@ export default class TransactionServices extends BaseServices {
     }
 
     // Calculo de Operações de Saldo
-
     const balanceOperations = [];
 
     function calculateBalance(currentBalance, value, type) {
-      if (type === 'expenses') {
+      if (type === 'expenses' || type === 'transfer_out') {
         return Number(currentBalance) - Number(value);
       }
 
-      if (type === 'incomings') {
+      if (type === 'incomings' || type === 'transfer_in') {
         return Number(currentBalance) + Number(value);
       }
     }
 
     function revertingBalance(currentBalance, value, type) {
-      if (type === 'expenses') {
+      if (type === 'expenses' || type === 'transfer_out') {
         return Number(currentBalance) + Number(value);
       }
 
-      if (type === 'incomings') {
+      if (type === 'incomings' || type === 'transfer_in') {
         return Number(currentBalance) - Number(value);
       }
     }
@@ -663,38 +679,34 @@ export default class TransactionServices extends BaseServices {
         const revertingTypeEffect = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
         const originAccountBalance = revertingTypeEffect - finalValue;
 
-        const destinyAccount = await bankAccountHelper(data.destiny_bank_account_id);
+        const destinyAccount = await bankAccountHelper(destiny_bank_account_id);
         const destinyAccountBalance = destinyAccount.accountBalance + finalValue;
 
         balanceOperations.push({
           originAccountId: finalBankAccountId,
           originAccountBalance: originAccountBalance,
-          accountId: data.destiny_bank_account_id,
-          newBalance: destinyAccountBalance,
-          allowNegative: destinyAccount.accountAllowNegative,
+          destinyAccountId: destiny_bank_account_id,
+          destinyAccountBalance: destinyAccountBalance,
+          originAccountAllowNegative: accountBalance.accountAllowNegative,
         });
       }
     }
 
     for (const i of balanceOperations) {
-      if (i.newBalance < 0 && i.allowNegative === false) {
+      const validadeBalanceBaseTransactions = i.newBalance < 0 && i.allowNegative === false;
+      const validateBalanceTransferTransactions = i.originAccountBalance < 0 && i.originAccountAllowNegative === false;
+
+      if (validadeBalanceBaseTransactions || validateBalanceTransferTransactions) {
         throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
       }
-    }
-
-    // Execução no banco
-    for (const i of balanceOperations) {
-      if ('originAccountId' in i && 'originAccountBalance' in i) {
-        await updateBankAccountBalanceHelper(i.originAccountId, i.originAccountBalance);
-      }
-
-      await updateBankAccountBalanceHelper(i.accountId, i.newBalance);
     }
 
     // Função para montar a query de UPDATE
     let query;
     let payload = {
       ...fieldsToUpdate,
+      updater_user_id: user_id,
+      updated_at: today,
     };
 
     // Valida se os valores finais mudaram e adicionas os que mudaram ao fieldsToUpdate
@@ -713,10 +725,166 @@ export default class TransactionServices extends BaseServices {
         transactionId,
       ];
 
-      return query = {
+      return {
         text: `UPDATE transactions SET ${setClause} WHERE id = $${values.length + 1} RETURNING *`,
         values: valuesWithTransactionId,
       };
+    }
+
+    // Execução no banco
+    for (const i of balanceOperations) {
+      if (finalType === 'transfers') {
+        const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
+
+        //Validar se a conta de detino é igual a de origem
+        if (i.originAccountId === i.destinyAccountId) {
+          throw new Error('A conta de destino não pode ser a mesma da conta de destino');
+        }
+
+        //Update transação original
+        const expenseTransactionPayload = {
+          ...payload,
+          type: 'transfer_out',
+          transfers_id: transferId,
+        };
+
+        const expenseTransactionQuery = createUpdateQuery(expenseTransactionPayload, transaction_id);
+        const expenseResult = await pool.query(expenseTransactionQuery);
+
+        // Crindo transação de entrada na conta de destino
+        const {
+          // eslint-disable-next-line no-unused-vars
+          id, type, installments_group_id, current_installment, invoice_id, created_at, updater_user_id, updated_at, ...fieldsToInsert
+        } = expenseResult.rows[0];
+
+        const incomingTransactionPayload = {
+          ...fieldsToInsert,
+          type: 'transfer_in',
+          bank_account_id: i.destinyAccountId,
+        };
+
+        // Função para montar a query de INSERT
+        function createInsertQuery(payload) {
+          const { columns, placeholders, values } = queryHelper(payload);
+
+          return {
+            text: `INSERT INTO transactions (${columns}) VALUES (${placeholders}) RETURNING *`,
+            values: values,
+          };
+        }
+        const incomingTransactionQuery = createInsertQuery(incomingTransactionPayload);
+        const incomingResult = await pool.query(incomingTransactionQuery);
+
+
+        if (finalStatus === 'completed') {
+          await updateBankAccountBalanceHelper(i.originAccountId, i.originAccountBalance); // Update saldo da conta de origem
+          await updateBankAccountBalanceHelper(i.destinyAccountId, i.destinyAccountBalance); // Update saldo da conta de destino
+        }
+
+        return {
+          expenseRow: expenseResult.rows[0],
+          incomingRow: incomingResult.rows[0],
+        };
+      }
+
+      const validationTransferType = currentTransaction.type === 'transfer_out' || currentTransaction.type === 'transfer_in';
+      if (validationTransferType && finalType !== 'transfers') {
+        // Pegando as duas transações
+        const transferId = await pool.query(
+          'SELECT transfers_id FROM transactions WHERE id = $1',
+          [transaction_id],
+        );
+
+        const transfersTransactions = await pool.query(
+          'SELECT * FROM transactions WHERE transfers_id = $1',
+          [transferId.rows[0].transfers_id],
+        );
+
+        // Localizando transação não selecionada
+        const findUnselectTransaction = transfersTransactions.rows.find(transaction => transaction.id !== transaction_id);
+        const unselectTransactionId = findUnselectTransaction?.id;
+        const unselectTransactionValue = findUnselectTransaction?.value;
+        const unselectTransactionType = findUnselectTransaction?.type;
+        const unselectAccountId = findUnselectTransaction?.bank_account_id;
+        const unselectTransactionBalance = await bankAccountHelper(unselectAccountId);
+
+        // Reverter saldo da transação não selecionada
+        const unselectNewBalance = revertingBalance(unselectTransactionBalance.accountBalance, unselectTransactionValue, unselectTransactionType);
+
+        // Update do saldo das contas bancárias
+        if (finalStatus === 'completed') {
+          await updateBankAccountBalanceHelper(i.accountId, i.newBalance);
+          await updateBankAccountBalanceHelper(unselectAccountId, unselectNewBalance);
+        }
+
+        // Criando payload de update
+        const updatedTransactionPayload = {
+          ...payload,
+          transfers_id: null,
+        };
+        const updatedTransactionQuery = createUpdateQuery(updatedTransactionPayload, transaction_id);
+        const updatedTransactionResult = await pool.query(updatedTransactionQuery);
+
+        // Excluindo transação não selecionada
+        const deleteUnselectTransaction = await pool.query(
+          'DELETE FROM transactions WHERE id = $1 RETURNING *',
+          [unselectTransactionId],
+        );
+
+        return {
+          updateTransaction: updatedTransactionResult.rows,
+          deleteTransaction: deleteUnselectTransaction.rows,
+        };
+      }
+
+      const validatePayMethod = await payMethodValuesHelper(finalPayMethod);
+
+      if (validatePayMethod.rows[0].credit_card === true && all_installments === true) {
+        const installmentGroupId = await pool.query(
+          'SELECT installments_group_id FROM transactions WHERE id = $1',
+          [transaction_id],
+        );
+
+        const allInstallmentsList = await pool.query(
+          'SELECT id, value FROM transactions WHERE installments_group_id = $1',
+          [installmentGroupId.rows[0].installments_group_id],
+        );
+
+        let accumulatedValue = 0;
+        let allInstallmentsUpdateResult = [];
+
+        for (const row of allInstallmentsList.rows) {
+          accumulatedValue += Number(row.value);
+
+          const updateQuery = createUpdateQuery(payload, row.id);
+          const result = await pool.query(updateQuery);
+
+          allInstallmentsUpdateResult.push(result.rows[0]);
+        }
+
+        if (finalStatus === 'completed') {
+          const countAccountResult = await pool.query(
+            'SELECT COUNT(DISTINCT bank_account_id) AS distinc_count FROM transactions WHERE installments_group_id = $1',
+            [installmentGroupId.rows[0].installments_group_id],
+          );
+
+          const hasDifferentAccounts = Number(countAccountResult.rows[0].distinct_count) > 1;
+
+          if (hasDifferentAccounts) {
+            throw new Error('Validação falhou: Existem parcelas com contas bancárias diferentes no grupo.');
+          }
+
+          await updateBankAccountBalanceHelper(i.accountId, accumulatedValue);
+        }
+
+        return allInstallmentsUpdateResult;
+      }
+
+      if ('originAccountId' in i && 'originAccountBalance' in i) {
+        await updateBankAccountBalanceHelper(i.originAccountId, i.originAccountBalance);
+      }
+
+      await updateBankAccountBalanceHelper(i.accountId, i.newBalance);
     }
 
     query = createUpdateQuery(payload, transaction_id);

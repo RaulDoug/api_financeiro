@@ -91,6 +91,8 @@ describe('TransactionServices - create()', () => {
       expect(result.incomingRow).toHaveProperty('id');
       expect(result.expenseRow.status).toBe('pending');
       expect(result.incomingRow.status).toBe('pending');
+      expect(result.expenseRow.type).toBe('transfer_out');
+      expect(result.incomingRow.type).toBe('transfer_in');
       expect(result.expenseRow.transfers_id).toBeDefined();
       expect(result.incomingRow.transfers_id).toBeDefined();
       expect(result.expenseRow.transfers_id).toBe(result.incomingRow.transfers_id);
