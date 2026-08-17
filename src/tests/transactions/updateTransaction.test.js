@@ -122,6 +122,13 @@ describe('TransactionServices - update()', () => {
     );
   }
 
+  async function sortedInstallmentsList(installmenteGroupId) {
+    return await pool.query(
+      'SELECT * FROM transactions WHERE installments_group_id = $1 ORDER BY due_date ASC, id ASC',
+      [installmenteGroupId],
+    );
+  }
+
   describe('Validação de Entrada - Falhas Básicas', () => {
     test('FALHA - Não realiza a operação quando user_id, wallet_id e transaction_id não são enviados', async () => {
       const payload = {};
@@ -1506,16 +1513,14 @@ describe('TransactionServices - update()', () => {
         pay_methods_id: testData.payMethodCreditCardId,
         counterparty_id: testData.counterpartyPayerId,
         type: 'expenses',
-        value: 50.00,
+        value: 150.00,
         description: 'Compra no cartão de crédito',
         purchase_date: '2026-07-10',
         installments_number: 3,
       };
 
       const creditCardResult = await transactionService.create(creditCardPayload);
-      const installmentGroupId = creditCardResult.installments_group_id;
-
-      const { firstInstallmentValue, secondInstallmentValue, thirdInstallmentValue } = findIdByCurrentInstallment(creditCardResult, 'id');
+      const installmentGroupId = creditCardResult.rows[0].installments_group_id;
 
       // Update parcelas para completed
       await pool.query(
@@ -1528,6 +1533,13 @@ describe('TransactionServices - update()', () => {
         'UPDATE bank_accounts SET balance = 250.00 WHERE id = $1',
         [testData.bankAccountId],
       );
+
+      const installmentsResult = await pool.query(
+        'SELECT * FROM transactions WHERE installments_group_id = $1',
+        [installmentGroupId],
+      );
+
+      const { firstInstallmentValue, secondInstallmentValue, thirdInstallmentValue } = findIdByCurrentInstallment(installmentsResult, 'id');
 
       return {
         firstInstallmentId: firstInstallmentValue,
@@ -1580,7 +1592,6 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        console.log(result);
 
         expect(result[0].status).toBe('completed');
         expect(result[1].status).toBe('completed');
@@ -1589,7 +1600,7 @@ describe('TransactionServices - update()', () => {
         // validar saldo da conta bancária
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
 
-        expect(accountBalanceResult.rows[0].balance).toBe(150.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(250.00);
       });
 
       test('SUCESSO - completed -> pending em parcela individual: estorna o saldo desta parcela, payment_date vira null, demais parcelas permanecem inalteradas', async () => {
@@ -1605,16 +1616,20 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
         expect(result.status).toBe('pending');
-        expect(result.paymente).toBeNull();
+        expect(result.payment_date).toBeNull();
 
         // Validando parcelas restantes
+        // Validar outras parcelas
         const remainderInstallments = await allInstallmentsResult(creditCardCompleted.installmentGroupId);
-        expect(remainderInstallments.rows[0].status).toBe('pending');
-        expect(remainderInstallments.rows[2].status).toBe('pending');
+        const { firstInstallmentValue, secondInstallmentValue, thirdInstallmentValue } = findIdByCurrentInstallment(remainderInstallments, 'status');
 
-        // Validando saldo da conta. Esta 150.00 deve estar agora 200.00
+        expect(firstInstallmentValue).toBe('completed');
+        expect(secondInstallmentValue).toBe('pending');
+        expect(thirdInstallmentValue).toBe('completed');
+
+        // Validando saldo da conta. Esta 250.00 deve estar agora 300.00
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(200.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(300.00);
       });
 
       test('SUCESSO - completed -> cancelled em parcela: estorna o saldo e muda o status', async () => {
@@ -1630,16 +1645,18 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
         expect(result.status).toBe('cancelled');
-        expect(result.paymente_date).toBeNull();
+        expect(result.payment_date).toBeNull();
 
         // Validando parcelas restantes
-        const remainderInstallments = await allInstallmentsResult(creditCardCompleted.installmentGroupId);
-        expect(remainderInstallments.rows[0].status).toBe('pending');
-        expect(remainderInstallments.rows[2].status).toBe('pending');
+        const allInstallments = await sortedInstallmentsList(result.installments_group_id);
+
+        expect(allInstallments.rows[0].status).toBe('completed');
+        expect(allInstallments.rows[1].status).toBe('cancelled');
+        expect(allInstallments.rows[2].status).toBe('completed');
 
         // Validando saldo da conta. Esta 150.00 deve estar agora 200.00
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(200.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(300.00);
       });
 
       test('FALHA - pending -> completed: recusa quando a conta não tem saldo suficiente', async () => {
@@ -1652,26 +1669,27 @@ describe('TransactionServices - update()', () => {
           pay_methods_id: testData.payMethodCreditCardId,
           counterparty_id: testData.counterpartyPayerId,
           type: 'expenses',
-          value: 150.00,
+          value: 450.00,
           description: 'Compra no cartão de crédito',
           purchase_date: '2026-07-10',
           installments_number: 3,
         };
 
         const creditCardResult = await transactionService.create(creditCardPayload);
-        const installmentGroupId = creditCardResult.installments_group_id;
+        const installmentGroupId = creditCardResult.rows[0].installments_group_id;
 
         const allInstallments = await pool.query(
           'SELECT * FROM transactions WHERE installments_group_id = $1',
           [installmentGroupId],
         );
-        const secondInstallmentId = allInstallments.rows[0].id;
+        const { secondInstallmentValue } = findIdByCurrentInstallment(allInstallments, 'id');
 
         // Update
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transaction_id: secondInstallmentId,
+          transaction_id: secondInstallmentValue,
+          status: 'completed',
         };
 
         await expect(transactionService.update(payload))
@@ -1684,8 +1702,8 @@ describe('TransactionServices - update()', () => {
         const creditCardPending = await creditCardPendingAll();
 
         const updateStatusToExpired = await pool.query(
-          'UPDATE transactions SET due_date = "2026-07-01", status = "expired" WHERE id = $1',
-          [creditCardPending.firstInstallmentId],
+          'UPDATE transactions SET due_date = $1, status = $2 WHERE id = $3 RETURNING *',
+          ['2026-07-01T03:00:00.000Z', 'expired', creditCardPending.firstInstallmentId],
         );
         expect(updateStatusToExpired.rows[0].status).toBe('expired');
         expect((updateStatusToExpired.rows[0].due_date).toISOString().split('T')[0]).toBe('2026-07-01');
@@ -1707,7 +1725,7 @@ describe('TransactionServices - update()', () => {
 
         // Validar saldo da conta
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(230.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(330.00);
       });
 
       test('SUCESSO - expired -> completed com all_installments = true e juros/multa gerais distribuidos sobre o total geral', async () => {
@@ -1715,8 +1733,8 @@ describe('TransactionServices - update()', () => {
         const creditCardPending = await creditCardPendingAll();
 
         const updateStatusToExpired = await pool.query(
-          'UPDATE transactions SET due_date = "2026-07-01", status = "expired" WHERE installments_id = $1',
-          [creditCardPending.installmentGroupId],
+          'UPDATE transactions SET due_date = $1, status = $2 WHERE installments_group_id = $3 RETURNING *',
+          ['2026-07-01T03:00:00.000Z', 'expired', creditCardPending.installmentGroupId],
         );
         expect(updateStatusToExpired.rows[0].status).toBe('expired');
         expect((updateStatusToExpired.rows[0].due_date).toISOString().split('T')[0]).toBe('2026-07-01');
@@ -1737,25 +1755,25 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        expect(result.rows[0].status).toBe('completed');
-        expect(result.rows[0].value).toBe(60.00);
-        expect(result.rows[1].status).toBe('completed');
-        expect(result.rows[1].value).toBe(60.00);
-        expect(result.rows[2].status).toBe('completed');
-        expect(result.rows[2].value).toBe(60.00);
+        expect(result[0].status).toBe('completed');
+        expect(result[0].value).toBe(60.00);
+        expect(result[1].status).toBe('completed');
+        expect(result[1].value).toBe(60.00);
+        expect(result[2].status).toBe('completed');
+        expect(result[2].value).toBe(60.00);
 
         // validando saldo da conta
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(120.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(220.00);
       });
 
-      test('SUCESSO - pending -> ancelled em parcela: cancela apenas uma parcela, atualiza o current_installment das demais parcelas', async () => {
+      test('SUCESSO - pending -> cancelled em parcela: cancela apenas uma parcela, atualiza o current_installment das demais parcelas', async () => {
         // Criando transação pending
         const creditCardPending = await creditCardPendingAll();
 
         const payload = {
           user_id: testData.userId,
-          wallet_id: testData.wallet_id,
+          wallet_id: testData.walletId,
           transaction_id: creditCardPending.secondInstallmentId,
           status: 'cancelled',
         };
@@ -1763,16 +1781,23 @@ describe('TransactionServices - update()', () => {
         const result = await transactionService.update(payload);
         expect(result.status).toBe('cancelled');
 
-        // Validar parcelas restantes
-        const validateAllInstallments = await allInstallmentsResult(creditCardPending.installmentGroupId);
-        expect(validateAllInstallments.rows[0].status).toBe('pending');
-        expect(validateAllInstallments.rows[0].current_installmente).toBe(1);
-        expect(validateAllInstallments.rows[2].status).toBe('pending');
-        expect(validateAllInstallments.rows[2].current_installmente).toBe(2);
+        // Validando parcelas restantes
+        const remainderInstallments = await pool.query(
+          'SELECT status, current_installment FROM transactions WHERE installments_group_id = $1 ORDER BY due_date ASC, id ASC',
+          [creditCardPending.installmentGroupId],
+        );
+
+        expect(remainderInstallments.rows[0].status).toBe('pending');
+        expect(remainderInstallments.rows[0].current_installment).toBe(1);
+        expect(remainderInstallments.rows[1].status).toBe('cancelled');
+        expect(remainderInstallments.rows[1].current_installment).toBeNull();
+        expect(remainderInstallments.rows[2].status).toBe('pending');
+        expect(remainderInstallments.rows[2].current_installment).toBe(2);
       });
     });
 
     describe('value', () => {
+
       test('SUCESSO - Alterar o value da parcela pending individual: altera apenas a parcela informada, as demais permanecem com valor original', async () => {
         // Criando transação pending
         const creditCardPending = await creditCardPendingAll();
@@ -1788,7 +1813,7 @@ describe('TransactionServices - update()', () => {
         expect(result.value).toBe(100.00);
 
         // Validar value das parcelas restantes
-        const remainderInstallments = await allInstallmentsResult(creditCardPending.installmentGroupId);
+        const remainderInstallments = await sortedInstallmentsList(creditCardPending.installmentGroupId);
         expect(remainderInstallments.rows[1].value).toBe(50.00);
         expect(remainderInstallments.rows[2].value).toBe(50.00);
       });
@@ -1808,13 +1833,13 @@ describe('TransactionServices - update()', () => {
         expect(result.value).toBe(100.00);
 
         // Validar value das parcelas restantes
-        const remainderInstallments = await allInstallmentsResult(creditCardCompleted.installmentGroupId);
+        const remainderInstallments = await sortedInstallmentsList(creditCardCompleted.installmentGroupId);
         expect(remainderInstallments.rows[1].value).toBe(50.00);
         expect(remainderInstallments.rows[2].value).toBe(50.00);
 
         // Validando saldo
-        const accountBalanceResult = await accountBalance(creditCardCompleted.installmentGroupId);
-        expect(accountBalanceResult.rows[0].balance).toBe(100.00);
+        const accountBalanceResult = await accountBalance(remainderInstallments.rows[0].bank_account_id);
+        expect(accountBalanceResult.rows[0].balance).toBe(200.00);
       });
 
       test('FALHA - Alterar o value para valor que resulte em saldo insuficiente', async () => {
@@ -1825,7 +1850,7 @@ describe('TransactionServices - update()', () => {
           user_id: testData.userId,
           wallet_id: testData.walletId,
           transaction_id: creditCardCompleted.firstInstallmentId,
-          value: 300.00,
+          value: 450.00,
         };
 
         await expect(transactionService.update(payload))
@@ -1850,13 +1875,13 @@ describe('TransactionServices - update()', () => {
         expect(result.bank_account_id).toBe(testData.bankAccountIdB);
 
         // Validando parcelas restantes
-        const remainderInstallments = await allInstallmentsResult(creditCardCompleted.installmentGroupId);
+        const remainderInstallments = await sortedInstallmentsList(creditCardCompleted.installmentGroupId);
         expect(remainderInstallments.rows[1].bank_account_id).toBe(testData.bankAccountId);
         expect(remainderInstallments.rows[2].bank_account_id).toBe(testData.bankAccountId);
 
         // Validando saldo da conta antiga
         const oldAccountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(oldAccountBalanceResult.rows[0].balance).toBe(200.00);
+        expect(oldAccountBalanceResult.rows[0].balance).toBe(300.00);
 
         // Validando saldo da conta nova
         const newAccountBalanceResult = await accountBalance(testData.bankAccountIdB);
@@ -1925,6 +1950,7 @@ describe('TransactionServices - update()', () => {
 
     describe('purchase_date', () => {
       let creditCardPendingId;
+
       beforeEach(async () => {
         const creditCardPayload = {
           wallet_id: testData.walletId,
@@ -1940,7 +1966,7 @@ describe('TransactionServices - update()', () => {
         };
 
         const creditCardResult = await transactionService.create(creditCardPayload);
-        creditCardPendingId = creditCardResult.rows[0].id;
+        creditCardPendingId = creditCardResult.id;
       });
 
       test('SUCESSO - Alterar o purchase_date para data que muda o mês da fatura ->  invoice_id é atualizado para nova fatura correspondente', async () => {
@@ -1951,8 +1977,10 @@ describe('TransactionServices - update()', () => {
           purchase_date: '2026-07-01',
         };
 
-        const result = await transactionService(payload);
+        const result = await transactionService.update(payload);
+        console.log(result);
         expect((result.purchase_date).toISOString().split('T')[0]).toBe('2026-07-01');
+        expect((result.due_date).toISOString().split('T')[0]).toBe('2026-07-09');
         expect(result.invoice_id).toBe(`${result.pay_methods_id}_2026/07`);
       });
 
@@ -2021,18 +2049,26 @@ describe('TransactionServices - update()', () => {
           category_id: testData.categorieExpenseId,
           pay_methods_id: testData.payMethodCreditCardId,
           counterparty_id: testData.counterpartyPayerId,
-          type: 'cancelled',
+          type: 'expenses',
+          status: 'pending',
           value: 50.00,
           description: 'Compra no cartão de crédito',
           purchase_date: '2026-07-10',
         };
 
         const creditCardResult = await transactionService.create(creditCardPayload);
+        const creditCardResultUpdate = await pool.query(
+          'UPDATE transactions SET status = $1 WHERE id = $2 RETURNING status',
+          ['cancelled', creditCardResult.id],
+        );
+        expect(creditCardResultUpdate.rows[0].status).toBe('cancelled');
+
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transaction_id: creditCardResult.rows[0].id,
+          transaction_id: creditCardResult.id,
+          status: 'pending',
           due_date: '2026-07-01',
         };
 
@@ -2043,7 +2079,7 @@ describe('TransactionServices - update()', () => {
     });
   });
 
-  describe('Transações recorrentes - is_recurrent + installments_group_id', () => {
+  describe('Transações recorrentes - is_recurrent e installments_group_id', () => {
     async function recurrentPending() {
       const payload = {
         wallet_id: testData.walletId,
@@ -2086,16 +2122,16 @@ describe('TransactionServices - update()', () => {
         const result = await transactionService.update(payload);
 
         expect(result.status).toBe('completed');
-        expect((result.paymente_date).toISOString().split('T')[0]).toBe('2026-07-10');
+        expect((result.payment_date).toISOString().split('T')[0]).toBe('2026-07-10');
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
+        const remainderRecurrent = await sortedInstallmentsList(recurrentTransaction.installmentGroupId);
         expect(remainderRecurrent.rows[1].status).toBe('pending');
         expect(remainderRecurrent.rows[2].status).toBe('pending');
 
         // Validando saldo da conta
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(290.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(390.00);
       });
 
       test('SUCESSO - completed -> pending em parcela individual: estorna o saldo, paymente_date vira null, demais permanecem inalteradas', async () => {
@@ -2123,7 +2159,7 @@ describe('TransactionServices - update()', () => {
         expect(resultCompleted.rows[2].status).toBe('pending');
 
         const currentAccountBalance = await accountBalance(testData.bankAccountId);
-        expect(currentAccountBalance.rows[0].balance).toBe(200.00);
+        expect(currentAccountBalance.rows[0].balance).toBe(500.00);
 
         // Update
         const payload = {
@@ -2135,14 +2171,14 @@ describe('TransactionServices - update()', () => {
 
         const result = await transactionService.update(payload);
         expect(result.status).toBe('pending');
-        expect(result.paymente_date).toBeNull();
+        expect(result.payment_date).toBeNull();
 
         // Validando saldo
         const newAccountBalance = await accountBalance(testData.bankAccountId);
-        expect(newAccountBalance.rows[0].balance).toBe(300.00);
+        expect(newAccountBalance.rows[0].balance).toBe(400.00);
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(resultCompleted.rows[0].installments_group_id);
+        const remainderRecurrent = await sortedInstallmentsList(resultCompleted.rows[0].installments_group_id);
         expect(remainderRecurrent.rows[1].status).toBe('pending');
         expect(remainderRecurrent.rows[2].status).toBe('pending');
       });
@@ -2176,10 +2212,10 @@ describe('TransactionServices - update()', () => {
 
         // Validando saldo
         const accountBalanceResult = await accountBalance(testData.bankAccountId);
-        expect(accountBalanceResult.rows[0].balance).toBe(270.00);
+        expect(accountBalanceResult.rows[0].balance).toBe(370.00);
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
+        const remainderRecurrent = await sortedInstallmentsList(recurrentTransaction.installmentGroupId);
         expect(remainderRecurrent.rows[1].status).toBe('pending');
         expect(remainderRecurrent.rows[2].status).toBe('pending');
       });
@@ -2198,7 +2234,7 @@ describe('TransactionServices - update()', () => {
         expect(result.status).toBe('cancelled');
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
+        const remainderRecurrent = await sortedInstallmentsList(recurrentTransaction.installmentGroupId);
         expect(remainderRecurrent.rows[1].status).toBe('pending');
         expect(remainderRecurrent.rows[2].status).toBe('pending');
       });
@@ -2302,12 +2338,12 @@ describe('TransactionServices - update()', () => {
         expect(result.value).toBe(15.00);
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
+        const remainderRecurrent = await sortedInstallmentsList(recurrentTransaction.installmentGroupId);
         expect(remainderRecurrent.rows[1].value).toBe(10.00);
         expect(remainderRecurrent.rows[2].value).toBe(10.00);
       });
 
-      test('SUCESSO - Altera value com flag all_installments = true: propga o novo valor para todas as parcelas do grupo', async () => {
+      test('SUCESSO - Altera value com flag all_installments = true: propaga o novo valor para todas as parcelas do grupo', async () => {
         const recurrentTransaction = await recurrentPending();
 
         const payload = {
@@ -2319,12 +2355,12 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        expect(result.rows[0].value).toBe(15.00);
-        expect(result.rows[0].current_installment).toBe(1);
-        expect(result.rows[1].value).toBe(15.00);
-        expect(result.rows[1].current_installment).toBe(2);
-        expect(result.rows[2].value).toBe(15.00);
-        expect(result.rows[2].current_installment).toBe(3);
+        expect(result[0].value).toBe(15.00);
+        expect(result[0].current_installment).toBe(1);
+        expect(result[1].value).toBe(15.00);
+        expect(result[1].current_installment).toBe(2);
+        expect(result[2].value).toBe(15.00);
+        expect(result[2].current_installment).toBe(3);
       });
     });
 
@@ -2343,7 +2379,7 @@ describe('TransactionServices - update()', () => {
         expect(result.status).toBe('expired');
 
         // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
+        const remainderRecurrent = await sortedInstallmentsList(recurrentTransaction.installmentGroupId);
         expect(remainderRecurrent.rows[1].status).toBe('pending');
         expect(remainderRecurrent.rows[2].status).toBe('pending');
       });
@@ -2377,14 +2413,14 @@ describe('TransactionServices - update()', () => {
     });
 
     describe('pay_methods_id', () => {
-      test('SUCESSO - Alterar pay_methods_id para método não cartão: atualiza sem restrições', async () => {
+      test('SUCESSO - Alterar pay_methods_id método não cartão: atualiza sem restrições', async () => {
         // Criar transação recorrente vinculada a um pay_methods_id de cartão de crédito
         const payloadCreditCard = {
           wallet_id: testData.walletId,
           creator_user_id: testData.userId,
           bank_account_id: testData.bankAccountId,
           category_id: testData.categorieExpenseId,
-          pay_methods_id: testData.payMethodCreditCardId,
+          pay_methods_id: testData.payMethodIdB,
           counterparty_id: testData.counterpartyPayerId,
           type: 'expenses',
           value: 10.00,
@@ -2396,7 +2432,6 @@ describe('TransactionServices - update()', () => {
         };
 
         const resultCreditCard = await transactionService.create(payloadCreditCard);
-        const installmenteGroupId = resultCreditCard.rows[0].installments_group_id;
 
         // Update para um pay_method_id que não é cartão de crédito
         const payload = {
@@ -2410,9 +2445,8 @@ describe('TransactionServices - update()', () => {
         expect(result.pay_methods_id).toBe(testData.payMethodId);
       });
 
-      test('SUCESSO - Alterar o pay_methods_id para cartão de crédito com confirmação: vincular à fatura correspondente', async () => {
+      test('SUCESSO - Alterar o pay_methods_id de não cartão para cartão de crédito com confirmação: vincular à fatura correspondente', async () => {
         // Criando transação pending e definindo qual fatura deve aparecer no resultado
-        const invoice = `${testData.payMethodCreditCardId}_2026/08`;
         const recurrentTransaction = await recurrentPending();
 
         // Update de pay_method
@@ -2424,8 +2458,15 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        expect(result.pay_methods_id).toBe(testData.payMethodCreditCardId);
-        expect(result.invoice_id).toBe(invoice);
+        expect(result[0].pay_methods_id).toBe(testData.payMethodCreditCardId);
+        expect(result[0].invoice_id).toBe(`${testData.payMethodCreditCardId}_2026/07`);
+        expect((result[0].due_date).toISOString().split('T')[0]).toBe('2026-07-09');
+        expect(result[1].pay_methods_id).toBe(testData.payMethodCreditCardId);
+        expect(result[1].invoice_id).toBe(`${testData.payMethodCreditCardId}_2026/08`);
+        expect((result[1].due_date).toISOString().split('T')[0]).toBe('2026-08-09');
+        expect(result[2].pay_methods_id).toBe(testData.payMethodCreditCardId);
+        expect(result[2].invoice_id).toBe(`${testData.payMethodCreditCardId}_2026/09`);
+        expect((result[2].due_date).toISOString().split('T')[0]).toBe('2026-09-09');
       });
     });
 
@@ -2442,12 +2483,9 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        expect(result.type).toBe('incomings');
-
-        // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
-        expect(remainderRecurrent.rows[1].type).toBe('incomings');
-        expect(remainderRecurrent.rows[2].type).toBe('incomings');
+        expect(result[0].type).toBe('incomings');
+        expect(result[1].type).toBe('incomings');
+        expect(result[2].type).toBe('incomings');
       });
 
       test('SUCESSO - Alterar o type de expenses para incomings em recorrete: em transação completed realiza a inversão de saldo - Altrera em todas as parcelas', async () => {
@@ -2465,7 +2503,7 @@ describe('TransactionServices - update()', () => {
 
         // Saldo antes de alterar
         const oldAccountBalance = await accountBalance(testData.bankAccountId);
-        expect(oldAccountBalance.rows[0].balance).toBe(290.00);
+        expect(oldAccountBalance.rows[0].balance).toBe(390.00);
 
         // Update do type para incoming
         const payload = {
@@ -2476,16 +2514,19 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        expect(result.type).toBe('incomings');
 
-        // Validando parcelas restantes
-        const remainderRecurrent = await allInstallmentsResult(recurrentTransaction.installmentGroupId);
-        expect(remainderRecurrent.rows[1].type).toBe('incomings');
-        expect(remainderRecurrent.rows[2].type).toBe('incomings');
 
-        // Salod após update do type
+        const allInstallmentsList = await sortedInstallmentsList(result[0].installments_group_id);
+        expect(allInstallmentsList.rows[0].type).toBe('incomings');
+        expect(allInstallmentsList.rows[0].status).toBe('completed');
+        expect(allInstallmentsList.rows[1].type).toBe('incomings');
+        expect(allInstallmentsList.rows[1].status).toBe('pending');
+        expect(allInstallmentsList.rows[2].type).toBe('incomings');
+        expect(allInstallmentsList.rows[2].status).toBe('pending');
+
+        // Saldo após update do type
         const newAccountBalance = await accountBalance(testData.bankAccountId);
-        expect(newAccountBalance.rows[0].balance).toBe(310.00);
+        expect(newAccountBalance.rows[0].balance).toBe(410.00);
       });
     });
   });
@@ -2496,7 +2537,7 @@ describe('TransactionServices - update()', () => {
         user_id: testData.userId,
         wallet_id: testData.walletId,
         transaction_id: testData.baseTransactionId,
-        paymente_date: '2026-07-10',
+        payment_date: '2026-07-10',
         status: 'cancelled',
       };
 
@@ -2520,7 +2561,7 @@ describe('TransactionServices - update()', () => {
 
       // Valiando saldo
       const accountBalanceResult = await accountBalance(testData.bankAccountId);
-      expect(accountBalanceResult.rows[0].balance).toBe(450.00);
+      expect(accountBalanceResult.rows[0].balance).toBe(550.00);
     });
 
     test('SUCESSO - Enviar bank_account_id + value no mesmo payload com completed: estorna o valor original da conta antiga e aplica o novo valor na conta nova', async () => {

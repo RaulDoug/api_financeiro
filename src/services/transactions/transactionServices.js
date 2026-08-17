@@ -534,6 +534,7 @@ export default class TransactionServices extends BaseServices {
     let finalType = fieldsToUpdate.type || currentTransaction.type;
     let finalDueDate = fieldsToUpdate.due_date || currentTransaction.due_date;
     let finalPayMethod = fieldsToUpdate.pay_methods_id || currentTransaction.pay_methods_id;
+    let finalPurchaseDate = fieldsToUpdate.purchase_date || currentTransaction.purchase_date;
 
     // Validação payment_date
     if ('payment_date' in fieldsToUpdate && finalStatus !== 'completed') {
@@ -577,6 +578,26 @@ export default class TransactionServices extends BaseServices {
     // Validação do type transfer
     if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account_id' in data)) {
       throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transferência');
+    }
+
+    // Buscando todas as parcelas de mesmo installments_group_id
+    async function installmentsList(transactionId) {
+      const installmentGroupIdQuery = await pool.query(
+        'SELECT installments_group_id FROM transactions WHERE id = $1',
+        [transactionId],
+      );
+
+      const installmenteGroupId = installmentGroupIdQuery.rows[0].installments_group_id;
+
+      const allInstallmentsList = await pool.query(
+        'SELECT * FROM transactions WHERE installments_group_id = $1',
+        [installmenteGroupId],
+      );
+
+      return {
+        allInstallmentsList: allInstallmentsList.rows,
+        installmentGroupId: installmenteGroupId,
+      };
     }
 
     // Calculo de Operações de Saldo
@@ -692,6 +713,16 @@ export default class TransactionServices extends BaseServices {
       }
     }
 
+    if (currentTransaction.status !== 'completed' && finalStatus !== 'completed') {
+      const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id);
+
+      balanceOperations.push({
+        accountId: currentTransaction.bank_account_id,
+        newBalance: accountBalance,
+        allowNegative: accountAllowNegative,
+      });
+    }
+
     for (const i of balanceOperations) {
       const validadeBalanceBaseTransactions = i.newBalance < 0 && i.allowNegative === false;
       const validateBalanceTransferTransactions = i.originAccountBalance < 0 && i.originAccountAllowNegative === false;
@@ -699,6 +730,10 @@ export default class TransactionServices extends BaseServices {
       if (validadeBalanceBaseTransactions || validateBalanceTransferTransactions) {
         throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
       }
+    }
+
+    if ('payment_date' in fieldsToUpdate && fieldsToUpdate.status === 'cancelled') {
+      throw new Error('Não é possível definir uma data de pagamento junto com status cancelled');
     }
 
     // Função para montar a query de UPDATE
@@ -731,8 +766,36 @@ export default class TransactionServices extends BaseServices {
       };
     }
 
+    function validadeInvoiceId(dueDay, closingDay, purchaseDate) {
+      const { month } = todayHelper(); // Data atual para validação
+      const payMethodDueDay = dueDay; // Dia de vencimento da fatura do cartão
+      const payMethodClosingDay = closingDay; // Dia de fechamento da fatura
+      const dateStr = purchaseDate instanceof Date ? purchaseDate.toISOString().split('T')[0] : String(purchaseDate).split('T')[0];
+      const [purchaseYear, purchaseMonth, purchaseDay] = dateStr.split('-'); // Data de pagamento | Deve receber uma data no formato YYYY-MM-DD
+
+      let invoiceYear = purchaseYear;
+      let invoiceMonth = Number(purchaseMonth) + 1;
+
+      if (Number(purchaseDay) < payMethodClosingDay && purchaseMonth === month) {
+        invoiceMonth = purchaseMonth;
+      }
+
+      if (purchaseMonth === '12') {
+        invoiceYear = Number(purchaseYear) + 1;
+        invoiceMonth = 1;
+      }
+
+      const invoiceDate = `${invoiceYear}/${String(invoiceMonth).padStart(2, '0')}`;
+      const invoiceId = `${currentTransaction.pay_methods_id}_${invoiceDate}`;
+      const dueDate = new Date(`${invoiceYear}-${invoiceMonth}-${payMethodDueDay}`);
+
+      return { invoiceId, dueDate, invoiceYear, invoiceMonth, payMethodDueDay };
+    }
+
     // Execução no banco
     for (const i of balanceOperations) {
+      let allInstallmentsUpdateResult = [];
+
       if (finalType === 'transfers') {
         const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
 
@@ -838,47 +901,228 @@ export default class TransactionServices extends BaseServices {
       }
 
       const validatePayMethod = await payMethodValuesHelper(finalPayMethod);
+      const validateCurrentPayMethod = await payMethodValuesHelper(currentTransaction.pay_methods_id);
 
-      if (validatePayMethod.rows[0].credit_card === true && all_installments === true) {
-        const installmentGroupId = await pool.query(
-          'SELECT installments_group_id FROM transactions WHERE id = $1',
-          [transaction_id],
-        );
+      if (validateCurrentPayMethod.rows[0].credit_card === true && validatePayMethod.rows[0].credit_card === false) {
+        throw new Error('Não é permitido alterar a forma de pagamento de compra parcelada em cartão de crédito para uma forma que não seja cartão de crédito');
+      }
 
-        const allInstallmentsList = await pool.query(
-          'SELECT id, value FROM transactions WHERE installments_group_id = $1',
-          [installmentGroupId.rows[0].installments_group_id],
-        );
+      if (validateCurrentPayMethod.rows[0].credit_card === false && validatePayMethod.rows[0].credit_card === true) {
+        const { invoiceYear, invoiceMonth, payMethodDueDay } = validadeInvoiceId(validatePayMethod.rows[0].due_day, validatePayMethod.rows[0].closing_day, finalPurchaseDate);
+        const { allInstallmentsList } = await installmentsList(transaction_id);
+        const [purchaseYear, purchaseMonth] = finalPurchaseDate.toISOString().split('T')[0].split('-');
 
-        let accumulatedValue = 0;
-        let allInstallmentsUpdateResult = [];
+        let invoiceMonthNew = invoiceMonth - 1;
+        let invoiceYearNew = invoiceYear;
 
-        for (const row of allInstallmentsList.rows) {
-          accumulatedValue += Number(row.value);
+        for (const item of allInstallmentsList) {
+          invoiceMonthNew += 1;
 
-          const updateQuery = createUpdateQuery(payload, row.id);
+          if (purchaseMonth === '12') {
+            invoiceYearNew = Number(purchaseYear) + 1;
+            invoiceMonthNew = 1;
+          }
+
+          const invoiceDate = `${invoiceYearNew}/${String(invoiceMonthNew).padStart(2, '0')}`;
+          const invoiceId = `${fieldsToUpdate.pay_methods_id}_${invoiceDate}`;
+          const dueDate = new Date(`${invoiceYearNew}-${invoiceMonthNew}-${payMethodDueDay}`);
+
+          payload = {
+            ...payload,
+            id: item.id,
+            invoice_id: invoiceId,
+            due_date: dueDate,
+          };
+
+          const updateQuery = createUpdateQuery(payload, item.id);
           const result = await pool.query(updateQuery);
 
           allInstallmentsUpdateResult.push(result.rows[0]);
         }
 
-        if (finalStatus === 'completed') {
-          const countAccountResult = await pool.query(
-            'SELECT COUNT(DISTINCT bank_account_id) AS distinc_count FROM transactions WHERE installments_group_id = $1',
-            [installmentGroupId.rows[0].installments_group_id],
-          );
+        return allInstallmentsUpdateResult;
+      }
 
-          const hasDifferentAccounts = Number(countAccountResult.rows[0].distinct_count) > 1;
+      if (validatePayMethod.rows[0].credit_card === true) {
+        if (fieldsToUpdate.type === 'incomings' || fieldsToUpdate.type === 'transfers') {
+          throw new Error('Não é permitido altera o tipo de transações com método de pagamento cartão de crédito');
+        }
 
-          if (hasDifferentAccounts) {
-            throw new Error('Validação falhou: Existem parcelas com contas bancárias diferentes no grupo.');
+        const { allInstallmentsList, installmentGroupId } = await installmentsList(transaction_id);
+        const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+
+        if (all_installments === true) {
+          const feesToCalculate = fees || 0;
+          const assessmentToCalculate = assessment || 0;
+
+          let accountBalanceValue = Number(accountBalance);
+
+          // Calulando juros e multas
+          const feesAndAssessment = Number(feesToCalculate) + Number(assessmentToCalculate);
+          const feesCalculatedForInstallments = Number(feesAndAssessment) / Number(allInstallmentsList.length);
+
+          // Revertendo o saldo da conta caso o currentTransaction.status for 'completed'
+          if (currentTransaction.status === 'completed') {
+            for (const row of allInstallmentsList) {
+              accountBalanceValue = revertingBalance(Number(accountBalanceValue), Number(row.value), row.type);
+            }
+
+            if (Number(accountBalanceValue) < 0 && accountAllowNegative === false) {
+              throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
+            }
+
+            await updateBankAccountBalanceHelper(i.accountId, Number(accountBalanceValue));
           }
 
-          await updateBankAccountBalanceHelper(i.accountId, accumulatedValue);
+          // Ataulizando objeto caso tenha juros e multas
+          for (const item of allInstallmentsList) {
+            if (Number(feesToCalculate) > 0 || Number(assessmentToCalculate) > 0) {
+              const valueWithFees = Number(item.value) + Number(feesCalculatedForInstallments);
+
+              accountBalanceValue = calculateBalance(accountBalanceValue, valueWithFees, item.type);
+
+              payload = {
+                ...payload,
+                value: Number(valueWithFees),
+              };
+
+              const updateQuery = createUpdateQuery(payload, item.id);
+              const result = await pool.query(updateQuery);
+
+              allInstallmentsUpdateResult.push(result.rows[0]);
+            } else {
+              accountBalanceValue = calculateBalance(Number(accountBalanceValue), Number(item.value), item.type);
+
+              const updateQuery = createUpdateQuery(payload, item.id);
+              const result = await pool.query(updateQuery);
+
+              allInstallmentsUpdateResult.push(result.rows[0]);
+            }
+          }
+
+          if (finalStatus === 'completed') {
+            const countAccountResult = await pool.query(
+              'SELECT COUNT(DISTINCT bank_account_id) AS distinc_count FROM transactions WHERE installments_group_id = $1',
+              [installmentGroupId],
+            );
+
+            const hasDifferentAccounts = Number(countAccountResult.rows[0].distinct_count) > 1;
+
+            if (hasDifferentAccounts) {
+              throw new Error('Validação falhou: Existem parcelas com contas bancárias diferentes no grupo.');
+            }
+
+            if (accountBalanceValue < 0 && accountAllowNegative === false) {
+              throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
+            }
+
+            await updateBankAccountBalanceHelper(i.accountId, Number(accountBalanceValue));
+          }
+
+          return allInstallmentsUpdateResult;
+        }
+
+        if (finalStatus === 'cancelled') {
+          const sortedList = [...allInstallmentsList].sort((a, b) => {
+            return new Date(a.due_date) - new Date(b.due_date);
+          });
+
+          payload = {
+            ...payload,
+            current_installment: null,
+          };
+
+          const updateQuery = createUpdateQuery(payload, transaction_id);
+          const result = await pool.query(updateQuery);
+
+          allInstallmentsUpdateResult.push(result.rows[0]);
+
+          let newCurrentInstallment = 0;
+
+          for (const item of sortedList) {
+            if (item.id === transaction_id) {
+              continue;
+            }
+
+            newCurrentInstallment += 1;
+
+            const updateCurrentInstallmentPayload = {
+              current_installment: newCurrentInstallment,
+            };
+
+            const updateQuery = createUpdateQuery(updateCurrentInstallmentPayload, item.id);
+            const result = await pool.query(updateQuery);
+
+            allInstallmentsUpdateResult.push(result.rows[0]);
+          }
+        }
+
+        if ('purchase_date' in fieldsToUpdate) {
+          const { invoiceId, dueDate } = validadeInvoiceId(validatePayMethod.rows[0].due_day, validatePayMethod.rows[0].closing_day, finalPurchaseDate);
+
+          payload = {
+            ...payload,
+            invoice_id: invoiceId,
+            due_date: dueDate,
+          };
+        }
+      }
+
+      const validateIfNotIsCreditCard = validateCurrentPayMethod.rows[0].credit_card === false && validatePayMethod.rows[0].credit_card === false;
+      if (currentTransaction.current_installment >= 1 && 'type' in fieldsToUpdate && validateIfNotIsCreditCard) {
+        const validateCurrentType = currentTransaction.type === 'expenses' || currentTransaction.type === 'transfer_out';
+        const validateFinalType = finalType !== 'expenses' && finalType !== 'transfer_out';
+        const { accountBalance } = await bankAccountHelper(finalBankAccountId);
+        const { allInstallmentsList } = await installmentsList(transaction_id);
+
+        let accountBalanceValue = accountBalance;
+
+        for (const item of allInstallmentsList) {
+          payload = {
+            ...payload,
+            type: fieldsToUpdate.type,
+          };
+
+          const updateQuery = createUpdateQuery(payload, item.id);
+          const result = await pool.query(updateQuery);
+
+          allInstallmentsUpdateResult.push(result.rows[0]);
+        }
+
+        // Revertendo saldo caso necessário
+        const completedInstallments = allInstallmentsList.filter(item => item.status === 'completed');
+
+        if (completedInstallments.length > 0) {
+          for (const item of completedInstallments) {
+            // Reverte o saldo da conta
+            accountBalanceValue = revertingBalance(Number(accountBalanceValue), Number(item.value), item.type);
+
+            // Calcula o novo saldo da conta
+            accountBalanceValue = calculateBalance(Number(accountBalanceValue), Number(item.value), finalType);
+          }
+
+          await updateBankAccountBalanceHelper(i.accountId, accountBalanceValue);
         }
 
         return allInstallmentsUpdateResult;
       }
+
+      if (all_installments === true && validatePayMethod.rows[0].credit_card === false) {
+        const { allInstallmentsList } = await installmentsList(transaction_id);
+
+        for (const item of allInstallmentsList) {
+          payload = {
+            ...payload,
+          };
+
+          const updateQuery = createUpdateQuery(payload, item.id);
+          const result = await pool.query(updateQuery);
+
+          allInstallmentsUpdateResult.push(result.rows[0]);
+        }
+
+        return allInstallmentsUpdateResult;
+      };
 
       if ('originAccountId' in i && 'originAccountBalance' in i) {
         await updateBankAccountBalanceHelper(i.originAccountId, i.originAccountBalance);
