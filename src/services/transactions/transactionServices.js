@@ -1070,8 +1070,6 @@ export default class TransactionServices extends BaseServices {
 
       const validateIfNotIsCreditCard = validateCurrentPayMethod.rows[0].credit_card === false && validatePayMethod.rows[0].credit_card === false;
       if (currentTransaction.current_installment >= 1 && 'type' in fieldsToUpdate && validateIfNotIsCreditCard) {
-        const validateCurrentType = currentTransaction.type === 'expenses' || currentTransaction.type === 'transfer_out';
-        const validateFinalType = finalType !== 'expenses' && finalType !== 'transfer_out';
         const { accountBalance } = await bankAccountHelper(finalBankAccountId);
         const { allInstallmentsList } = await installmentsList(transaction_id);
 
