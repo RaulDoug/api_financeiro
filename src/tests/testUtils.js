@@ -1,10 +1,12 @@
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
+import crypto from 'node:crypto';
 
 export async function createAuthenticatedUser() {
+  const randomId = crypto.randomUUID().slice(0, 8);
   const response = await pool.query({
     text: 'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, email',
-    values: ['User Teste', `teste+${Date.now()}@teste.com`, 'senha_criptografada'],
+    values: ['User Teste', `teste+${randomId}@teste.com`, 'senha_criptografada'],
   });
 
   const user = response.rows[0];

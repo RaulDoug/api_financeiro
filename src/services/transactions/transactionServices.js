@@ -10,6 +10,8 @@ import {
   validateTransactionsFksHelper,
   updateBankAccountBalanceHelper,
   validateResoureceOwnershipHelper,
+  calculateBalance,
+  revertingBalance,
 } from './transactionsHelpers.js';
 
 export default class TransactionServices extends BaseServices {
@@ -603,26 +605,6 @@ export default class TransactionServices extends BaseServices {
     // Calculo de Operações de Saldo
     const balanceOperations = [];
 
-    function calculateBalance(currentBalance, value, type) {
-      if (type === 'expenses' || type === 'transfer_out') {
-        return Number(currentBalance) - Number(value);
-      }
-
-      if (type === 'incomings' || type === 'transfer_in') {
-        return Number(currentBalance) + Number(value);
-      }
-    }
-
-    function revertingBalance(currentBalance, value, type) {
-      if (type === 'expenses' || type === 'transfer_out') {
-        return Number(currentBalance) + Number(value);
-      }
-
-      if (type === 'incomings' || type === 'transfer_in') {
-        return Number(currentBalance) - Number(value);
-      }
-    }
-
     if (currentTransaction.status === 'completed' && finalStatus !== 'completed') {
       const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id);
 
@@ -1134,4 +1116,164 @@ export default class TransactionServices extends BaseServices {
 
     return result.rows[0];
   };
+
+  async delete(data) {
+    const { user_id, wallet_id, transaction_id, all_installments } = data; // Valores passados no data
+
+    // Validação campos obrigatórios
+    if (!user_id || !wallet_id || !transaction_id) {
+      throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
+    }
+
+    // Validação se é um UUID válido e se localiza a transação no banco de dados
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (!uuidV4Regex.test(transaction_id)) {
+      throw new Error('ID da transação inexistente ou inválido');
+    };
+
+    const searchTransaction = await pool.query(
+      'SELECT * FROM transactions WHERE id = $1',
+      [transaction_id],
+    );
+
+    if (searchTransaction.rows.length === 0) {
+      throw new Error('ID da transação inexistente ou inválido');
+    };
+
+    const transactionValues = searchTransaction.rows[0];
+
+    await userValidateHelper(user_id, wallet_id); // Validação do criador da transação
+
+    // Validação se a transação informada pertence a mesma carteira passada
+    if (wallet_id !== transactionValues.wallet_id) {
+      throw new Error('Transação informada pertencente a outra carteira. Impossível prosseguir com a operação');
+    }
+
+    // Função de reverter e validar saldo
+    async function revertingAndValidadeBalance(bankAccountId, value, type) {
+      const { accountBalance, accountAllowNegative } = bankAccountHelper(bankAccountId);
+
+      const newBalance = revertingBalance(accountBalance, value, type);
+
+      if (newBalance < 0 && accountAllowNegative === false) {
+        throw new Error('Impossível realizar exclusão. Saldo atual da conta bancária é insuficiente ou não permite ser negativo');
+      }
+
+      await updateBankAccountBalanceHelper(bankAccountId, newBalance);
+    }
+
+    // Controle Transacional e Atomicidade
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      let response;
+
+      if (transactionValues.transfers_id !== null) {
+        const transfersList = await client.query(
+          'SELECT * FROM transactions WHERE transfers_id = $1',
+          [transactionValues.transfers_id],
+        );
+
+        if (transactionValues.status === 'completed') {
+          for (const transaction of transfersList.rows) {
+            await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type);
+          }
+        }
+
+        const deleteTransactionByTransferId = await client.query(
+          'DELETE FROM transactions WHERE transfers_id = $1 RETURNING *',
+          [transfersList.rows[0].transfers_id],
+        );
+
+        const transferOut = deleteTransactionByTransferId.rows.find(t => t.type === 'transfer_out');
+        const transferIn = deleteTransactionByTransferId.rows.find(t => t.type === 'transfer_in');
+
+        response = {
+          message: 'Transações de transferência excluídas com sucesso!',
+          expense: transferOut,
+          incoming: transferIn,
+        };
+      } else if (transactionValues.installments_group_id !== null && transactionValues.current_installment > 0) {
+        if (all_installments === true) {
+          const allTransactions = await client.query(
+            'SELECT * FROM transactions WHERE installments_group_id = $1',
+            [transactionValues.installments_group_id],
+          );
+
+          // Validando e revertendo saldo caso necessário
+          for (const transaction of allTransactions.rows) {
+            if (transaction.status === 'completed') {
+              await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type);
+            }
+          }
+
+          const deleteTransactionByInstallmentsGropId = await client.query(
+            'DELETE FROM transactions WHERE installments_group_id = $1 RETURNING *',
+            [transactionValues.installments_group_id],
+          );
+
+          response = {
+            message: 'Todas as parcelas foram excluídas com sucesso!',
+            itens: deleteTransactionByInstallmentsGropId.rows,
+          };
+        } else {
+          if (transactionValues.status === 'completed') {
+            await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type);
+          }
+
+          const deleteSelectedInstallment = await client.query(
+            'DELETE FROM transactions WHERE id = $1',
+            [transactionValues.id],
+          );
+
+          // Buscar parcelas restantes e reordenar o current_installment
+          const remainderTransactions = await client.query(
+            'SELECT * FROM transactions WHERE installments_group_id = $1 ORDER BY due_date ASC, id ASC',
+            [transactionValues.installments_group_id],
+          );
+
+          let newCurrentInstallment = 0;
+
+          for (const transaction of remainderTransactions.rows) {
+            newCurrentInstallment += 1;
+            await client.query(
+              'UPDATE transactions SET current_isntallment = $1 WHERE id = $2',
+              [newCurrentInstallment, transaction.id],
+            );
+          };
+
+          response = {
+            message: 'Todas as parcelas foram excluídas com sucesso!',
+            itens: deleteSelectedInstallment.rows,
+          };
+        }
+      } else {
+        if (transactionValues.status === 'completed') {
+          await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type);
+        }
+
+        const deletedTransaction = await client.query(
+          'DELETE FROM transactions WHERE id = $1 RETURNING *',
+          [transactionValues.id],
+        );
+
+        await client.query('COMMIT');
+
+        response = {
+          message: 'Transação excluída com sucesso!',
+          item: deletedTransaction.rows,
+        };
+      }
+
+      return response;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }

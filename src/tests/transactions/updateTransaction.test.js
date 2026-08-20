@@ -1978,7 +1978,6 @@ describe('TransactionServices - update()', () => {
         };
 
         const result = await transactionService.update(payload);
-        console.log(result);
         expect((result.purchase_date).toISOString().split('T')[0]).toBe('2026-07-01');
         expect((result.due_date).toISOString().split('T')[0]).toBe('2026-07-09');
         expect(result.invoice_id).toBe(`${result.pay_methods_id}_2026/07`);

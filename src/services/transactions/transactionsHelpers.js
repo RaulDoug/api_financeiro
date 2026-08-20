@@ -7,7 +7,7 @@ export const userValidateHelper = async (userId, walletId) => {
   );
 
   if (result.rows.length === 0) {
-    throw new Error('Usário sem permissão ou não vinculado a carteira');
+    throw new Error('Usuário sem permissão ou não vinculado a carteira');
   }
 
   return result.rows[0];
@@ -100,4 +100,24 @@ export const validateResoureceOwnershipHelper = async (table, resouserId, wallet
   }
 
   return result.rows[0];
+};
+
+export const calculateBalance = (currentBalance, value, type) => {
+  if (type === 'expenses' || type === 'transfer_out') {
+    return Number(currentBalance) - Number(value);
+  }
+
+  if (type === 'incomings' || type === 'transfer_in') {
+    return Number(currentBalance) + Number(value);
+  }
+};
+
+export const revertingBalance = (currentBalance, value, type) => {
+  if (type === 'expenses' || type === 'transfer_out') {
+    return Number(currentBalance) + Number(value);
+  }
+
+  if (type === 'incomings' || type === 'transfer_in') {
+    return Number(currentBalance) - Number(value);
+  }
 };
