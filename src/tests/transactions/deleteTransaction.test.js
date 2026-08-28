@@ -512,7 +512,7 @@ describe('TransactionService - delete()', () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
-        transaction_id: testData.transferCompletedId,
+        transaction_id: testData.originTransferCompletedId,
       };
 
       await expect(transactionService.delete(payload))
@@ -539,7 +539,7 @@ describe('TransactionService - delete()', () => {
       const accountBalance = await accountBlance(testData.bankAccountId);
 
       expect(result.message).toBe('Transação excluída com sucesso!');
-      expect(result.item.id).toBe(testData.completedTransactionIncomingId);
+      expect(result.item[0].id).toBe(testData.completedTransactionIncomingId);
       expect(accountBalance.rows[0].balance).toBe(-100.00);
     });
   });
@@ -633,7 +633,7 @@ describe('TransactionService - delete()', () => {
 
         const result = await transactionService.delete(payload);
         expect(result.message).toBe('Transação excluída com sucesso!');
-        expect(result.item.id).toBe(recurrentData.firstRecurrentTransactionId);
+        expect(result.itens[0].id).toBe(recurrentData.firstRecurrentTransactionId);
 
         const newAccountBalance = await accountBlance(testData.bankAccountId);
         expect(newAccountBalance.rows[0].balance).toBe(180.00);
@@ -673,7 +673,7 @@ describe('TransactionService - delete()', () => {
           [testData.bankAccountId],
         );
         expect(creditCardUpdate.status).toBe('completed');
-        expect(accountBalance.rows[0].balance).toBe(290.00);
+        expect(accountBalance.rows[0].balance).toBe(190.00);
 
         // Delete
         const payload = {
@@ -684,15 +684,16 @@ describe('TransactionService - delete()', () => {
         };
 
         const result = await transactionService.delete(payload);
-        expect(result.message).toBe('Transação excluída com sucesso!');
-        expect(result.item.id).toBe(firstRecurrentTransactionId);
+        const sortedItens = result.itens.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+        expect(result.message).toBe('Todas as parcelas foram excluídas com sucesso!');
+        expect(sortedItens[0].id).toBe(firstRecurrentTransactionId);
 
         const newAccountBalance = await pool.query(
           'SELECT balance FROM bank_accounts WHERE id = $1',
           [testData.bankAccountId],
         );
 
-        expect(newAccountBalance.rows[0].balance).toBe(300.00);
+        expect(newAccountBalance.rows[0].balance).toBe(200.00);
       });
 
       test('SUCESSO - Deve conseguir excluir todas as parcelas recorrentes se o parâmetro all_installments = true. Pode selecionar qualquer parcela deste grupo para concluir a operação', async () => {

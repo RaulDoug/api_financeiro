@@ -685,12 +685,19 @@ export default class TransactionServices extends BaseServices {
         const destinyAccount = await bankAccountHelper(destiny_bank_account_id);
         const destinyAccountBalance = destinyAccount.accountBalance + finalValue;
 
+        await validateResoureceOwnershipHelper(
+          'bank_accounts',
+          destiny_bank_account_id,
+          wallet_id,
+          'Conta bancária de destino',
+        );
+
         balanceOperations.push({
           originAccountId: finalBankAccountId,
           originAccountBalance: originAccountBalance,
           destinyAccountId: destiny_bank_account_id,
           destinyAccountBalance: destinyAccountBalance,
-          originAccountAllowNegative: accountBalance.accountAllowNegative,
+          originAccountAllowNegative: accountAllowNegative,
         });
       }
     }
@@ -1091,6 +1098,9 @@ export default class TransactionServices extends BaseServices {
       if (all_installments === true && validatePayMethod.rows[0].credit_card === false) {
         const { allInstallmentsList } = await installmentsList(transaction_id);
 
+        const { accountBalance, accountAllowNegative } = await bankAccountHelper(i.accountId);
+        let currentAccountBalance = Number(accountBalance);
+
         for (const item of allInstallmentsList) {
           payload = {
             ...payload,
@@ -1098,6 +1108,18 @@ export default class TransactionServices extends BaseServices {
 
           const updateQuery = createUpdateQuery(payload, item.id);
           const result = await pool.query(updateQuery);
+          
+          const { status, type, value } = result.rows[0];
+
+          if (status === 'completed') {
+            currentAccountBalance = calculateBalance(currentAccountBalance, Number(value), type);
+
+            if (currentAccountBalance < 0 && accountAllowNegative === false) {
+              throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
+            }
+
+            await updateBankAccountBalanceHelper(i.accountId, currentAccountBalance);
+          }
 
           allInstallmentsUpdateResult.push(result.rows[0]);
         }

@@ -4,7 +4,7 @@ import app from '../../app.js';
 import pool from '../../config/db.js';
 import TransactionServices from '../../services/transactions/transactionServices.js';
 import { setupTransactionData } from './transactionTestUtils.js';
-import { createAuthenticatedUser } from '../testUtils.js';
+import { createAuthenticatedUser, createWallet } from '../testUtils.js';
 
 describe('TransactionServices - update()', () => {
   // Configurações de variáveis e beforeEach create()
@@ -173,7 +173,7 @@ describe('TransactionServices - update()', () => {
 
       await expect(transactionService.update(payload))
         .rejects
-        .toThrow('Usário sem permissão ou não vinculado a carteira');
+        .toThrow('Usuário sem permissão ou não vinculado a carteira');
     });
 
     test('FALHA - Não realiza a operação quando nenhum campo para atualização for enviado no payload', async () => {
@@ -188,7 +188,7 @@ describe('TransactionServices - update()', () => {
         .toThrow('Nenhum campo informado para atualização');
     });
 
-    test('SUCESSO - Retorna mensagem de nenhum valor alterado quando toods os campos enviados são idênticos aos atuais', async () => {
+    test('SUCESSO - Retorna mensagem de nenhum valor alterado quando todos os campos enviados são idênticos aos atuais', async () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
@@ -1448,6 +1448,116 @@ describe('TransactionServices - update()', () => {
 
       const newAccountBalanceResult = await accountBalance(testData.bankAccountId);
       expect(newAccountBalanceResult.rows[0].balance).toBe(400.00);
+    });
+
+    test('FALHA - incomings -> transfers: Recusa se a conta de origem não tiver saldo após estorno da entrada + débito da saída', async () => {
+      const incomingTransactionId = await incomingsTransaction();
+      // Atualizando saldo da conta de origem para 0
+      const originAccountNewBalance = await pool.query(
+        'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
+        [0, testData.bankAccountId],
+      );
+      expect(originAccountNewBalance.rows[0].balance).toBe(0);
+
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: incomingTransactionId,
+        destiny_bank_account_id: testData.bankAccountIdB,
+        type: 'transfers',
+        value: 200.00,
+      };
+
+      await expect(transactionService.update(payload))
+        .rejects
+        .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
+    });
+
+    test('FALHA - incomings -> transfers: Recusar se destiny_bank_account_id for inexistente ou pertencer a outra carteira', async () => {
+      // Criando conta bancária em outra carteira
+      const walletB = await createWallet(testData.userId);
+      const bankAccountAnotherWallet = await request(app)
+        .post('/api/bank-account/register')
+        .set('Authorization', testData.authHeader)
+        .set('x-wallet-id', walletB.id)
+        .send({
+          bank_name: 'Banco de teste',
+          balance: 300,
+        });
+
+      // Update
+      const incomingTransactionId = await incomingsTransaction();
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: incomingTransactionId,
+        type: 'transfers',
+        destiny_bank_account_id: bankAccountAnotherWallet.body.item.id,
+      };
+
+      await expect(transactionService.update(payload))
+        .rejects
+        .toThrow('Conta bancária de destino não encontrada ou não pertence a esta carteira.');
+    });
+
+    test.each([
+      {
+        desc: 'incomings',
+        balanceValue: 200.00,
+      },
+      {
+        desc: 'expenses',
+        balanceValue: 0.00,
+      },
+    ])('SUCESSO - transfer_in -> $desc: Iniciar o update a partir da transação de entrada da transferência, veirficando exclusão do transfer_out e ajuste dos saldos', async ({ desc, balanceValue }) => {
+      // Consulta transferências e saldos
+      const { transferIncomeId, transferExpenseId } = await transfersTransactions();
+      const transferTransaction = await pool.query(
+        'SELECT * FROM transactions WHERE id = $1',
+        [transferIncomeId],
+      );
+      const transfersId = transferTransaction.rows[0].transfers_id;
+      const allTransfersForId = await pool.query(
+        'SELECT * FROM transactions WHERE transfers_id = $1',
+        [transfersId],
+      );
+      expect(allTransfersForId.rows.length).toBe(2);
+
+      const originBalance = await accountBalance(testData.bankAccountId);
+      const destinyBalance = await accountBalance(testData.bankAccountIdB);
+      expect(originBalance.rows[0].balance).toBe(300.00);
+      expect(destinyBalance.rows[0].balance).toBe(200.00);
+
+      // Update
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: transferIncomeId,
+        type: desc,
+      };
+
+      const result = await transactionService.update(payload);
+      expect(result.updateTransaction[0].type).toBe(desc);
+
+      // Validando se transfer_out foi excluído
+      const transferOut = await pool.query(
+        'SELECT * FROM transactions WHERE id = $1',
+        [transferExpenseId],
+      );
+      expect(transferOut.rows.length).toBe(0);
+
+      // Validando lista de trasnferência se esta zerada
+      const validateTransfers = await pool.query(
+        'SELECT * FROM transactions WHERE transfers_id = $1',
+        [transfersId],
+      );
+      expect(validateTransfers.rows.length).toBe(0);
+
+      // Validando novo saldo das contas:
+      const originNewBalance = await accountBalance(testData.bankAccountId);
+      const destinyNewBalance = await accountBalance(testData.bankAccountIdB);
+      expect(originNewBalance.rows[0].balance).toBe(400.00);
+      expect(destinyNewBalance.rows[0].balance).toBe(balanceValue);
     });
   });
 

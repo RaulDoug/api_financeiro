@@ -803,7 +803,7 @@ describe('TransactionServices - create()', () => {
 
       await expect(transactionService.create(payload))
         .rejects
-        .toThrow('Usário sem permissão ou não vinculado a carteira');
+        .toThrow('Usuário sem permissão ou não vinculado a carteira');
 
       vi.useRealTimers();
     });
