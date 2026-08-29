@@ -1,6 +1,7 @@
 import BaseServices from '../baseServices.js';
 import pool from '../../config/db.js';
 import crypto from 'node:crypto';
+import { addMonths, format, startOfDay, setDate } from 'date-fns';
 import {
   userValidateHelper,
   payMethodValuesHelper,
@@ -143,22 +144,15 @@ export default class TransactionServices extends BaseServices {
 
       const payMethodDueDay = payMethodValues.rows[0].due_day; // Dia de vencimento da fatura do cartão
       const payMethodClosingDay = payMethodValues.rows[0].closing_day; // Dia de fechamento da fatura
-      const [purchaseYear, purchaseMonth, purchaseDay] = data.purchase_date.split('-'); // Data de pagamento | Deve receber uma data no formato YYYY-MM-DD
+      // const [purchaseYear, purchaseMonth, purchaseDay] = data.purchase_date.split('-'); // Data de pagamento | Deve receber uma data no formato YYYY-MM-DD
+      const purchaseDate = startOfDay(new Date(data.purchase_date));
+      const purchaseDay = format(purchaseDate, 'dd');
 
-      let invoiceYear = purchaseYear;
-      let invoiceMonth = Number(purchaseMonth) + 1;
+      // Validando se a compra foi feita antes do fechamento da fatura e criando a data da fatura de acordo com a data da compra
+      const monthsToAdd = purchaseDay < payMethodClosingDay ? 0 : 1;
+      const baseInvoiceDate = addMonths(purchaseDate, monthsToAdd);
 
-      // Validando se a compra foi feita antes do fechamento da fatura
-      if (Number(purchaseDay) < payMethodClosingDay && purchaseMonth === month) {
-        invoiceMonth = purchaseMonth;
-      }
-
-      if (purchaseMonth === '12') {
-        invoiceYear = Number(purchaseYear) + 1;
-        invoiceMonth = 1;
-      }
-
-      const invoiceDate = `${invoiceYear}/${String(invoiceMonth).padStart(2, '0')}`;
+      const invoiceDate = format(baseInvoiceDate, 'yyyy/MM');
       const invoiceId = `${data.pay_methods_id}_${invoiceDate}`;
 
       let invoiceIdToUse;
@@ -180,16 +174,16 @@ export default class TransactionServices extends BaseServices {
         const result = [];
 
         for (let i = 0; i < data.installments_number; i++) {
-          let targetMonth = Number(invoiceMonth) + i;
-          let targetYear = Number(invoiceYear) + Math.floor((targetMonth - 1) / 12);
-          targetMonth = ((targetMonth - 1) % 12) + 1;
+          const currentInstallmentDate = addMonths(baseInvoiceDate, i);
 
-          const formattedMonth = String(targetMonth).padStart(2, '0');
-          const formattedDuaDay = String(payMethodDueDay).padStart(2, '0');
-
-          const currentInvoiceDate = `${targetYear}/${formattedMonth}`;
+          const currentInvoiceDate = format(currentInstallmentDate, 'yyyy/MM');
           const currentInvoiceId = `${data.pay_methods_id}_${currentInvoiceDate}`;
-          const currentDueDate = `${targetYear}-${formattedMonth}-${formattedDuaDay}`;
+
+          const targetYear = format(currentInstallmentDate, 'yyyy');
+          const targetMonth = format(currentInstallmentDate, 'MM');
+          const formattedDueDay = String(payMethodDueDay).padStart(2, '0');
+
+          const currentDueDate = `${targetYear}-${targetMonth}-${formattedDueDay}`;
           const currentInstallment = i + 1;
 
           const invoiceIdQuery = await pool.query(
@@ -235,6 +229,9 @@ export default class TransactionServices extends BaseServices {
         invoiceIdToUse = invoiceIdQuery.rows[0].invoice_id;
       }
 
+      const invoiceYear = format(baseInvoiceDate, 'yyyy');
+      const invoiceMonth = format(baseInvoiceDate, 'MM');
+
       const newDueDate = `${invoiceYear}-${invoiceMonth}-${payMethodDueDay}`;
       data.due_date = newDueDate;
 
@@ -274,18 +271,14 @@ export default class TransactionServices extends BaseServices {
         firstMonth = Number(purchaseMonth);
       }
 
-      const result = [];
+      const baseDate = setDate(new Date(purchaseYear, firstMonth - 1), Number(data.due_day));
 
+      const result = [];
       const installmentGroupId = crypto.randomUUID();
 
       for (let i = 0; i < data.installments_number; i++) {
-        let targetMonth = Number(firstMonth) + i;
-        let targetYear = Number(purchaseYear) + Math.floor((targetMonth - 1) / 12);
-        targetMonth = ((targetMonth - 1) % 12) + 1;
-
-        const formattedMonth = String(targetMonth).padStart(2, '0');
-        const formattedDuaDay = String(data.due_day).padStart(2, '0');
-        const currentDueDate = `${targetYear}-${formattedMonth}-${formattedDuaDay}`;
+        const currentDueDateObj = addMonths(baseDate, i);
+        const currentDueDate = format(currentDueDateObj, 'yyyy-MM-dd');
         const currentInstallment = i + 1;
 
         const recorrentTransactionPayload = buildPayload(data.bank_account_id);

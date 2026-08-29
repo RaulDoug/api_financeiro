@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { format, startOfDay } from 'date-fns';
 
 export const userValidateHelper = async (userId, walletId) => {
   const result = await pool.query(
@@ -21,12 +22,11 @@ export const payMethodValuesHelper = async (payMethodsId) => {
 };
 
 export const todayHelper = () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const formattedToday = `${year}-${month}-${day}`;
+  const today = startOfDay(new Date());
+  const year = format(today, 'yyyy');
+  const month = format(today, 'MM');
+  const day = format(today, 'dd');
+  const formattedToday = format(today, 'yyyy-MM-dd');
 
   return { today, year, month, day, formattedToday };
 };
