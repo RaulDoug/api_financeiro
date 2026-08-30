@@ -136,7 +136,6 @@ describe('TransactionServices - create()', () => {
       };
 
       const result = await transactionService.create(payload);
-
       const installmenteGroupId = result.rows[0].installments_group_id;
 
       expect(result.rows.length).toBe(3);

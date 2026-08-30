@@ -1,4 +1,4 @@
-import pool from '../../config/db.js';
+import pool from '../../../config/db.js';
 import { format, startOfDay } from 'date-fns';
 
 export const userValidateHelper = async (userId, walletId) => {
@@ -82,8 +82,8 @@ export const validateTransactionsFksHelper = async (data, isUpdate = false) => {
   }
 };
 
-export const updateBankAccountBalanceHelper = async (bankAccountId, newBalance) => {
-  await pool.query(
+export const updateBankAccountBalanceHelper = async (bankAccountId, newBalance, client) => {
+  await client.query(
     'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
     [newBalance, bankAccountId],
   );
