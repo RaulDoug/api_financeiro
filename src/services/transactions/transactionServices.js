@@ -54,8 +54,6 @@ export default class TransactionServices extends BaseServices {
 
     const value = Number(data.value); // Armazena o valor da transação
 
-    const bankAccount = await bankAccountHelper(data.bank_account_id); // Consulta da conta bancária
-
     if (!data.is_recurrent) {
       data.is_recurrent = false;
     }
@@ -65,6 +63,8 @@ export default class TransactionServices extends BaseServices {
 
     try {
       await client.query('BEGIN');
+
+      const bankAccount = await bankAccountHelper(data.bank_account_id, client); // Consulta da conta bancária
 
       // Lançamento de despesas.
       if (data.type === 'expenses' && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
@@ -127,7 +127,7 @@ export default class TransactionServices extends BaseServices {
 
         const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
         const bankAccountOutBalance = bankAccount; // Passa um nome mais descritivo para esta operação para o bank_account
-        const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id); // Pega o valor em conta da conta de destino
+        const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id, client); // Pega o valor em conta da conta de destino
 
         // Validação para confirmar se a conta de origem e conta de destino não são as mesmas
         if (data.bank_account_id === data.destiny_bank_account_id) {
@@ -185,6 +185,8 @@ export default class TransactionServices extends BaseServices {
             incomingRow,
           };
 
+          await client.query('COMMIT');
+
           return transactionsRows;
         }
 
@@ -215,6 +217,8 @@ export default class TransactionServices extends BaseServices {
             incomingRow,
           };
 
+          await client.query('COMMIT');
+
           return transactionsRows;
         }
       }
@@ -242,6 +246,8 @@ export default class TransactionServices extends BaseServices {
       fees,
       assessment,
       all_installments,
+      // eslint-disable-next-line no-unused-vars
+      destiny_bank_account_id,
       ...updateFields
     } = data; // Separa os valores bases passados dos valores a se atualizar
 
@@ -320,19 +326,26 @@ export default class TransactionServices extends BaseServices {
       }
 
       // Resolução de Estado Final E Validações de Négocio
+      let finalValue;
+
       const {
         finalStatus,
         finalPaymentDate,
-        finalValue,
+        defineFinalValue,
         finalBankAccountId,
         finalType,
         finalPayMethod,
         finalPurchaseDate,
       } = resolveFinalTransactionStateHelper(currentTransaction, fieldsToUpdate, today, formattedToday, data);
 
-      // Calculo de Operações de Saldo
-      const balanceOperations = await calculateBalanceOperationsHelper(currentTransaction, finalStatus, finalValue, finalBankAccountId, finalType, fees, assessment, fieldsToUpdate, data);
+      finalValue = defineFinalValue;
 
+      // Calculo de Operações de Saldo
+      const { balanceOperations, newFinalValue } = await calculateBalanceOperationsHelper(currentTransaction, finalStatus, finalValue, finalBankAccountId, finalType, fees, assessment, fieldsToUpdate, data, client);
+      if (newFinalValue !== finalValue) {
+        finalValue = newFinalValue;
+      }
+      
       // Função para montar a query de UPDATE
       let query;
       let payload = {
@@ -429,6 +442,7 @@ export default class TransactionServices extends BaseServices {
 
         // Mudança de transações recorrentes que não cartão de crédito
         const validateIfNotIsCreditCard = validateCurrentPayMethod.rows[0].credit_card === false && validatePayMethod.rows[0].credit_card === false;
+
         if (currentTransaction.current_installment >= 1 && 'type' in fieldsToUpdate && validateIfNotIsCreditCard) {
           allInstallmentsUpdateResult = await updateRecurrentTransactionHelper({
             client,
@@ -512,9 +526,9 @@ export default class TransactionServices extends BaseServices {
     }
 
     // Função de reverter e validar saldo
-    async function revertingAndValidadeBalance(bankAccountId, value, type) {
-      const { accountBalance, accountAllowNegative } = await bankAccountHelper(bankAccountId);
-
+    async function revertingAndValidadeBalance(bankAccountId, value, type, client) {
+      const { accountBalance, accountAllowNegative } = await bankAccountHelper(bankAccountId, client);
+      console.log('Revertendo saldo da conta bancária', accountBalance, 'com valor de', value, 'e tipo de transação', type);
       const newBalance = revertingBalance(Number(accountBalance), Number(value), type);
 
       if (newBalance < 0 && accountAllowNegative === false) {
@@ -540,7 +554,7 @@ export default class TransactionServices extends BaseServices {
 
         if (transactionValues.status === 'completed') {
           for (const transaction of transfersList.rows) {
-            await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type);
+            await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type, client);
           }
         }
 
@@ -567,7 +581,7 @@ export default class TransactionServices extends BaseServices {
           // Validando e revertendo saldo caso necessário
           for (const transaction of allTransactions.rows) {
             if (transaction.status === 'completed') {
-              await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type);
+              await revertingAndValidadeBalance(transaction.bank_account_id, transaction.value, transaction.type, client);
             }
           }
 
@@ -582,7 +596,7 @@ export default class TransactionServices extends BaseServices {
           };
         } else {
           if (transactionValues.status === 'completed') {
-            await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type);
+            await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type, client);
           }
 
           let fullValue = 0;
@@ -632,8 +646,10 @@ export default class TransactionServices extends BaseServices {
           };
         }
       } else { // Exclusão de transação simples
+        console.log('Exclusão de transação simples');
         if (transactionValues.status === 'completed') {
-          await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type);
+          console.log('Revertendo saldo da transação simples');
+          await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type, client);
         }
 
         const deletedTransaction = await client.query(

@@ -12,7 +12,7 @@ export const updateRecurrentTransactionHelper = async ({
   i,
   finalType,
 }) => {
-  const { accountBalance } = await bankAccountHelper(finalBankAccountId);
+  const { accountBalance } = await bankAccountHelper(finalBankAccountId, client);
   const { allInstallmentsList } = await installmentsList(transaction_id, client);
 
   let accountBalanceValue = accountBalance;
@@ -50,7 +50,7 @@ export const updateRecurrentTransactionHelper = async ({
 export const updateAllRecurrentTransactionHelper = async ({client, payload, i, allInstallmentsUpdateResult, transaction_id}) => {
   const { allInstallmentsList } = await installmentsList(transaction_id, client);
 
-  const { accountBalance, accountAllowNegative } = await bankAccountHelper(i.accountId);
+  const { accountBalance, accountAllowNegative } = await bankAccountHelper(i.accountId, client);
   let currentAccountBalance = Number(accountBalance);
 
   for (const item of allInstallmentsList) {

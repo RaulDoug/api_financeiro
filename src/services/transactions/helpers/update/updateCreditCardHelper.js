@@ -66,7 +66,7 @@ export const updateForCreditCardHelper = async ({
   }
 
   const { allInstallmentsList, installmentGroupId } = await installmentsList(transaction_id, client);
-  const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+  const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId, client);
 
   if (data.all_installments === true) {
     const feesToCalculate = data.fees || 0;
@@ -151,8 +151,9 @@ export const updateForCreditCardHelper = async ({
 
     const updateQuery = createUpdateQuery(payload, transaction_id);
     const result = await client.query(updateQuery);
+    const cancelledTransaction = result.rows[0];
 
-    allInstallmentsUpdateResult.push(result.rows[0]);
+    // allInstallmentsUpdateResult.push(result.rows[0]);
 
     let newCurrentInstallment = 0;
 
@@ -173,7 +174,7 @@ export const updateForCreditCardHelper = async ({
       allInstallmentsUpdateResult.push(result.rows[0]);
     }
 
-    return allInstallmentsUpdateResult;
+    return cancelledTransaction;
   }
 
   if ('purchase_date' in fieldsToUpdate) {

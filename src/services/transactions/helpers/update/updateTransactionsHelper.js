@@ -30,7 +30,7 @@ export const installmentsList = async (transactionId, client) => {
 export const resolveFinalTransactionStateHelper = (currentTransaction, fieldsToUpdate, today, formattedToday, data) => {
   let finalStatus = currentTransaction.status;
   let finalPaymentDate = currentTransaction.payment_date;
-  let finalValue = fieldsToUpdate.value || currentTransaction.value;
+  let defineFinalValue = fieldsToUpdate.value || currentTransaction.value;
   let finalBankAccountId = fieldsToUpdate.bank_account_id || currentTransaction.bank_account_id;
   let finalType = fieldsToUpdate.type || currentTransaction.type;
   let finalDueDate = fieldsToUpdate.due_date || currentTransaction.due_date;
@@ -84,7 +84,7 @@ export const resolveFinalTransactionStateHelper = (currentTransaction, fieldsToU
   return {
     finalStatus,
     finalPaymentDate,
-    finalValue,
+    defineFinalValue,
     finalBankAccountId,
     finalType,
     finalDueDate,
@@ -94,11 +94,13 @@ export const resolveFinalTransactionStateHelper = (currentTransaction, fieldsToU
 };
 
 // Cálculo das Operações de Saldo
-export const calculateBalanceOperationsHelper = async (currentTransaction, finalStatus, finalValue, finalBankAccountId, finalType, fees, assessment, fieldsToUpdate, data) => {
+export const calculateBalanceOperationsHelper = async (currentTransaction, finalStatus, finalValue, finalBankAccountId, finalType, fees, assessment, fieldsToUpdate, data, client) => {
   const balanceOperations = [];
+
+  let newFinalValue = finalValue;
   
   if (currentTransaction.status === 'completed' && finalStatus !== 'completed') {
-    const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id);
+    const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id, client);
 
     const newBalance = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
 
@@ -110,16 +112,16 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
   }
 
   if (currentTransaction.status !== 'completed' && finalStatus === 'completed') {
-    const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+    const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId, client);
 
     if (currentTransaction.status === 'expired') {
       const feesToCalculate = fees || 0;
       const assessmentToCalculate = assessment || 0;
 
-      finalValue = Number(finalValue) + Number(feesToCalculate) + Number(assessmentToCalculate);
+      newFinalValue = Number(finalValue) + Number(feesToCalculate) + Number(assessmentToCalculate);
     }
 
-    const newBalance = calculateBalance(accountBalance, finalValue, finalType);
+    const newBalance = calculateBalance(accountBalance, newFinalValue, finalType);
 
     balanceOperations.push({
       accountId: finalBankAccountId,
@@ -129,7 +131,7 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
   }
 
   if (currentTransaction.status === 'completed' && finalStatus === 'completed') {
-    const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId);
+    const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId, client);
 
     if ('value' in fieldsToUpdate && !('bank_account_id' in fieldsToUpdate) && !('type' in fieldsToUpdate)) {
       const diff = finalValue - currentTransaction.value;
@@ -144,7 +146,7 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
 
     if ('bank_account_id' in fieldsToUpdate) {
       // Conta antiga
-      const oldBankAccount = await bankAccountHelper(currentTransaction.bank_account_id);
+      const oldBankAccount = await bankAccountHelper(currentTransaction.bank_account_id, client);
       const revertedOldAccountBalance = revertingBalance(oldBankAccount.accountBalance, currentTransaction.value, currentTransaction.type);
 
       // Conta nova
@@ -174,7 +176,7 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
       const revertingTypeEffect = revertingBalance(accountBalance, currentTransaction.value, currentTransaction.type);
       const originAccountBalance = revertingTypeEffect - finalValue;
 
-      const destinyAccount = await bankAccountHelper(data.destiny_bank_account_id);
+      const destinyAccount = await bankAccountHelper(data.destiny_bank_account_id, client);
       const destinyAccountBalance = destinyAccount.accountBalance + finalValue;
 
       await validateResoureceOwnershipHelper(
@@ -195,7 +197,7 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
   }
 
   if (currentTransaction.status !== 'completed' && finalStatus !== 'completed') {
-    const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id);
+    const { accountBalance, accountAllowNegative } = await bankAccountHelper(currentTransaction.bank_account_id, client);
 
     balanceOperations.push({
       accountId: currentTransaction.bank_account_id,
@@ -217,7 +219,7 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
     throw new Error('Não é possível definir uma data de pagamento junto com status cancelled');
   }
 
-  return balanceOperations;
+  return {balanceOperations, newFinalValue};
 };
 
 export const validadeInvoiceIdHelper = (dueDay, closingDay, purchaseDate, currentTransaction) => {

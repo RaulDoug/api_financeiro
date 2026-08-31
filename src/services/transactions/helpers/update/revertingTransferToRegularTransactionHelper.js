@@ -19,7 +19,7 @@ export const revertTransferToRegularTransactionHelper = async ({i, client, paylo
   const unselectTransactionValue = findUnselectTransaction?.value;
   const unselectTransactionType = findUnselectTransaction?.type;
   const unselectAccountId = findUnselectTransaction?.bank_account_id;
-  const unselectTransactionBalance = await bankAccountHelper(unselectAccountId);
+  const unselectTransactionBalance = await bankAccountHelper(unselectAccountId, client);
 
   // Reverter saldo da transação não selecionada
   const unselectNewBalance = revertingBalance(unselectTransactionBalance.accountBalance, unselectTransactionValue, unselectTransactionType);

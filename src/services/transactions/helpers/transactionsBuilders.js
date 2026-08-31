@@ -1,4 +1,4 @@
-import { queryHelper } from './transactionsHelpers';
+import { queryHelper } from './transactionsHelpers.js';
 
 // Função responsável por montar o payload do método create de transactions (É chamada dentro das validações e a propriedade é passada de acordo com retorno da validação)
 export const buildPayloadForCreate = (data, payMethodValues, bankAccountId, payload) => {

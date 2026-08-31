@@ -40,9 +40,10 @@ export const queryHelper = (payload) => {
   return { keys, values, columns, placeholders };
 };
 
-export const bankAccountHelper = async (bankAccountId) => {
-  const bankAccount = await pool.query(
-    'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1',
+export const bankAccountHelper = async (bankAccountId, client = null) => {
+  const db = client || pool;
+  const bankAccount = await db.query(
+    'SELECT balance, allow_negative_balance FROM bank_accounts WHERE id = $1 FOR UPDATE',
     [bankAccountId],
   );
   const accountBalance = bankAccount.rows[0].balance;

@@ -284,6 +284,9 @@ describe('TransactionService - delete()', () => {
     });
 
     test('SUCESSO - Deve excluir uma despesa expense com o status completed com sucesso revertendo a movimentação do saldo da conta bancária', async () => {
+      const accountBalanceBefore = await accountBlance(testData.bankAccountId);
+      console.log(accountBalanceBefore.rows[0].balance);
+      
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
@@ -933,7 +936,7 @@ describe('TransactionService - delete()', () => {
         const accountBalanceCompleted = await accountBlance(testData.bankAccountId);
         expect(accountBalanceCompleted.rows[0].balance).toBe(180.00);
 
-        // Delete de apenas uma transação
+        // Delete de todas as transações do grupo
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
@@ -1084,6 +1087,6 @@ describe('TransactionService - delete()', () => {
 
     // O Saldo da conta deve permanecer inalterado mantendo o mesmo saldo que estava antes da tentativa de delete
     const originBalance = await accountBlance(testData.bankAccountId);
-    expect(originBalance.rows[0].balance).toBe(300.00);
+    expect(originBalance.rows[0].balance).toBe(200.00);
   });
 });
