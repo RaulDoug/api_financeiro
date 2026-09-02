@@ -50,11 +50,11 @@ describe('TransactionsServices - find()', () => {
       }, // T2
       {
         name: 'expenseCreditCard',
-        overrides: {type: 'expenses', pay_methods_id: testData.payMethodCreditCardId, value: 100, purchase_date: '2026-08-28', installments_number: 2},
+        overrides: {type: 'expenses', pay_methods_id: testData.payMethodCreditCardId, value: 100, purchase_date: '2026-08-28', installments_number: 2, category_id: testData.categorieExpenseId},
       }, // T3 e T4
       {
         name: 'transfers',
-        overrides: {type: 'transfers', status: 'complete', value: 100.00, description: 'Transferência', due_date: '2026-08-10', destiny_bank_account_id: testData.bankAccountIdB},
+        overrides: {type: 'transfers', status: 'completed', value: 100.00, description: 'Transferência', due_date: '2026-08-10', destiny_bank_account_id: testData.bankAccountIdB},
       }, // T5 e T6
       {
         name: 'expenseBankB',
@@ -81,6 +81,7 @@ describe('TransactionsServices - find()', () => {
 
     // Usuário B vinculado a mesma carteira
     const userBData = await createAuthenticatedUser();
+    testData.userIdB = userBData.user.id;
     await pool.query(
       'INSERT INTO users_wallets (user_id, wallet_id, role) VALUES ($1, $2, $3) RETURNING *',
       [userBData.user.id, testData.walletId, 'editor'],
@@ -101,7 +102,7 @@ describe('TransactionsServices - find()', () => {
       payment_date: '2026-07-05',
     };
     const userBTransaction = await createTransaction(transactionService, testData, userBTransactionOverrides);
-    transactions.userBTransactionId = userBTransaction.rows[0].id;
+    transactions.userBTransaction = userBTransaction;
 
     // Outra carteria e usuário
     otherUserData = await createAuthenticatedUser();
@@ -156,7 +157,7 @@ describe('TransactionsServices - find()', () => {
       });
 
     // Transação otherWallet
-    const otherWalletOverrides = {
+    const otherWalletPayload = {
       wallet_id: otherWalletData.id,
       creator_user_id: otherUserData.user.id,
       bank_account_id: bankAccountOtherWallet.body.item.id,
@@ -169,7 +170,7 @@ describe('TransactionsServices - find()', () => {
       value: 30,
       payment_date: '2026-07-05',
     };
-    const otherWalletTransaction = await createTransaction(transactionService, testData, otherWalletOverrides);
+    const otherWalletTransaction = await transactionService.create(otherWalletPayload);
 
     itensOnWalletB = {
       bankAccountOtherWallet: bankAccountOtherWallet.body.item.id,
@@ -270,7 +271,7 @@ describe('TransactionsServices - find()', () => {
           pay_methods_id: itensOnWalletB.payMethodCreditCardOtherWallet,
           counterparty_id: itensOnWalletB.counterpartyPayeeOtherWallet,
           description: 'Transação CreditCard otherWallet',
-          type: 'incomings',
+          type: 'expenses',
           status: 'completed',
           value: 30,
           payment_date: '2026-07-05',
@@ -291,7 +292,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por transfer_id', () => {
       test('SUCESSO - Deve retornar todas as transações do mesmo grupo de transferências quando filtrado por transfer_id', async () => {
-        const transferId = transactions.transfers.rows[0].transfer_id;
+        const transferId = transactions.transfers.expenseRow.transfers_id;
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
@@ -301,8 +302,8 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(2);
-        const transferOut = result.filter(item => item.type === 'transfer_out');
-        const transferIn = result.filter(item => item.type === 'transfer_in');
+        const transferOut = result.rows.filter(item => item.type === 'transfer_out');
+        const transferIn = result.rows.filter(item => item.type === 'transfer_in');
         expect(transferOut).toHaveLength(1);
         expect(transferIn).toHaveLength(1);
       });
@@ -345,7 +346,7 @@ describe('TransactionsServices - find()', () => {
         };
 
         const transferTransactionOtherWallet = await createTransaction(transactionService, testData, transferTransactionOtherWalletPayload);
-        const transferIdOtherWallet = transferTransactionOtherWallet.rows[0].transfer_id;
+        const transferIdOtherWallet = transferTransactionOtherWallet.expenseRow.transfers_id;
 
 
         const payload = {
@@ -394,7 +395,7 @@ describe('TransactionsServices - find()', () => {
           pay_methods_id: itensOnWalletB.payMethodCreditCardOtherWallet,
           counterparty_id: itensOnWalletB.counterpartyPayeeOtherWallet,
           description: 'Transação CreditCard otherWallet',
-          type: 'incomings',
+          type: 'expenses',
           status: 'pending',
           value: 30,
           payment_date: '2026-07-05',
@@ -430,7 +431,7 @@ describe('TransactionsServices - find()', () => {
 
         expect(result.rows.length).toBe(9);
 
-        const hasTransferIn = result.some(item => item.type === 'transfer_in');
+        const hasTransferIn = result.rows.some(item => item.type === 'transfer_in');
         expect(hasTransferIn).toBe(false);
       });
 
@@ -443,8 +444,8 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(10);
-        const hasTransferIn = result.some(item => item.type === 'transfer_in');
+        expect(result.rows.length).toBe(11);
+        const hasTransferIn = result.rows.some(item => item.type === 'transfer_in');
         expect(hasTransferIn).toBe(true);
       });
 
@@ -521,7 +522,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(8);
+        expect(result.rows.length).toBe(7);
       });
 
       test('FALHA - Deve retornar um erro quando o category_id for inválido', async () => {
@@ -585,7 +586,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(6);
+        expect(result.rows.length).toBe(9);
       });
 
       test('SUCESSO - Deve retornar todas as transações vinculadas filtrando por múltiplos métodos de pagamento', async () => {
@@ -597,7 +598,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(8);
+        expect(result.rows.length).toBe(11);
       });
 
       test('FALHA - Deve retornar um erro quando o pay_methods_id for inválido', async () => {
@@ -641,7 +642,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(6);
+        expect(result.rows.length).toBe(11);
       });
 
       test('SUCESSO - Deve retornar todas as transações vinculadas filtrando por múltiplas contrapartidas', async () => {
@@ -653,7 +654,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(8);
+        expect(result.rows.length).toBe(11);
       });
 
       test('FALHA - Deve retornar um erro quando o counterparty_id for inválido', async () => {
@@ -687,7 +688,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(9);
+        expect(result.rows.length).toBe(10);
       });
 
       test('SUCESSO - Deve retornar todas as transações vinculadas filtrando por múltiplos usuários', async () => {
@@ -738,11 +739,11 @@ describe('TransactionsServices - find()', () => {
 
         expect(result.rows.length).toBe(6);
 
-        const hasTransferIn = result.some(item => item.type === 'transfer_in');
+        const hasTransferIn = result.rows.some(item => item.type === 'transfer_in');
         expect(hasTransferIn).toBe(false);
-        const hasTransferOut = result.some(item => item.type === 'transfer_out');
+        const hasTransferOut = result.rows.some(item => item.type === 'transfer_out');
         expect(hasTransferOut).toBe(false);
-        const hasIncomings = result.some(item => item.type === 'incomings');
+        const hasIncomings = result.rows.some(item => item.type === 'incomings');
         expect(hasIncomings).toBe(false);
       });
 
@@ -755,10 +756,10 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(2); 
+        expect(result.rows.length).toBe(3); 
 
-        const incomings = result.filter(item => item.type === 'incomings');
-        expect(incomings).toHaveLength(2);
+        const incomings = result.rows.filter(item => item.type === 'incomings');
+        expect(incomings).toHaveLength(3);
       });
 
       test('SUCESSO - Deve retornar todas as transações filtrando por múltiplos tipos', async () => {
@@ -770,10 +771,10 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(8);
+        expect(result.rows.length).toBe(9);
 
         const forbiddenTypes = ['transfer_in', 'transfer_out', 'transfers'];
-        const hasForbiddenType = result.some(item => forbiddenTypes.includes(item.type));
+        const hasForbiddenType = result.rows.some(item => forbiddenTypes.includes(item.type));
         expect(hasForbiddenType).toBe(false);
       });
 
@@ -789,7 +790,7 @@ describe('TransactionsServices - find()', () => {
         expect(result.rows.length).toBe(2);
         
         const forbiddenTypes = ['incomings', 'expenses'];
-        const hasForbiddenType = result.some(item => forbiddenTypes.includes(item.type));
+        const hasForbiddenType = result.rows.some(item => forbiddenTypes.includes(item.type));
         expect(hasForbiddenType).toBe(false);
       });
 
@@ -826,8 +827,8 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(5);
-        const hasCompleted = result.some(item => item.status === 'completed');
+        expect(result.rows.length).toBe(6);
+        const hasCompleted = result.rows.some(item => item.status === 'completed');
         expect(hasCompleted).toBe(false);
       });
 
@@ -840,8 +841,8 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(4);
-        const hasPending = result.some(item => item.status === 'pending');
+        expect(result.rows.length).toBe(3);
+        const hasPending = result.rows.some(item => item.status === 'pending');
         expect(hasPending).toBe(false);
       });
 
@@ -905,11 +906,11 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(4);
+        expect(result.rows.length).toBe(5);
 
         const min = 50;
         const max = 150;
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(Number(item.value)).toBeGreaterThanOrEqual(min);
           expect(Number(item.value)).toBeLessThanOrEqual(max);
         });
@@ -924,8 +925,8 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(2);
-        result.forEach(item => {
+        expect(result.rows.length).toBe(4);
+        result.rows.forEach(item => {
           expect(Number(item.value)).toBeGreaterThanOrEqual(100);
         });
       });
@@ -939,8 +940,8 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(4);
-        result.forEach(item => {
+        expect(result.rows.length).toBe(7);
+        result.rows.forEach(item => {
           expect(Number(item.value)).toBeLessThanOrEqual(50);
         });
       });
@@ -1056,10 +1057,10 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(6);
+        expect(result.rows.length).toBe(5);
 
         const searchTerm = 'tipo: expenses';
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(item.description).toContain(searchTerm);
         });
       });
@@ -1073,9 +1074,9 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(9);
+        expect(result.rows.length).toBe(7);
         const searchTerm = 'Transação de tipo';
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(item.description).toContain(searchTerm);
         });
       });
@@ -1091,7 +1092,7 @@ describe('TransactionsServices - find()', () => {
 
         expect(result.rows.length).toBe(1);
         const searchTerm = 'expensePending';
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(item.description).toContain(searchTerm);
         });
       });
@@ -1108,7 +1109,7 @@ describe('TransactionsServices - find()', () => {
         expect(result.rows.length).toBe(1);
         const searchTerm = 'ExPeNsEpEnDiNg';
 
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(item.description).toMatch(new RegExp(searchTerm, 'i'));
         });
       });
@@ -1122,9 +1123,9 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(9);
+        expect(result.rows.length).toBe(7);
         const searchTerm = 'tipo';
-        result.forEach(item => {
+        result.rows.forEach(item => {
           expect(item.description).toContain(searchTerm);
         });
       });
@@ -1213,7 +1214,7 @@ describe('TransactionsServices - find()', () => {
 
       test('SUCESSO - Filtra por faixa de datas de compra', async () => {
         await pool.query("UPDATE transactions SET purchase_date = '2026-08-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET purchase_date = '2026-08-25' WHERE id = $1", [transactions.expenseCompleted.rows[0].id]);
+        await pool.query("UPDATE transactions SET purchase_date = '2026-08-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1227,7 +1228,7 @@ describe('TransactionsServices - find()', () => {
         expect(result.rows.length).toBe(2);
         expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
         expect(result.rows[0].purchase_date).toBe('2026-08-15');
-        expect(result.rows[1].id).toBe(transactions.expenseCompleted.rows[0].id);
+        expect(result.rows[1].id).toBe(transactions.incomingComplete.rows[0].id);
         expect(result.rows[1].purchase_date).toBe('2026-08-25');
       });
 
@@ -1297,7 +1298,7 @@ describe('TransactionsServices - find()', () => {
 
       test('SUCESSO - Filtra por faixa de datas de vencimento', async () => {
         await pool.query("UPDATE transactions SET due_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET due_date = '2026-09-25' WHERE id = $1", [transactions.expenseCompleted.rows[0].id]);
+        await pool.query("UPDATE transactions SET due_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1353,7 +1354,7 @@ describe('TransactionsServices - find()', () => {
 
       test('SUCESSO - Filtra por faixa de datas de pagamento', async () => {
         await pool.query("UPDATE transactions SET payment_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET payment_date = '2026-09-25' WHERE id = $1", [transactions.expenseCompleted.rows[0].id]);
+        await pool.query("UPDATE transactions SET payment_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1397,7 +1398,7 @@ describe('TransactionsServices - find()', () => {
 
       test('SUCESSO - Filtra por faixa de datas de criação', async () => {
         const createdAt1 = transactions.expensePending.rows[0].created_at;
-        const createdAt2 = transactions.expenseCompleted.rows[0].created_at;
+        const createdAt2 = transactions.incomingComplete.rows[0].created_at;
 
         const payload = {
           user_id: testData.userId,
@@ -1427,7 +1428,7 @@ describe('TransactionsServices - find()', () => {
 
       const result = await transactionService.find(payload);
 
-      expect(result.rows.length).toBe(3);
+      expect(result.rows.length).toBe(5);
     });
 
     test('SUCESSO - Filtra por múltiplos filtros combinados trazendo fatura de cartão de crédito de um mês específico', async () => {
@@ -1450,7 +1451,7 @@ describe('TransactionsServices - find()', () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
-        category_id: testData.categorieExpenseId,
+        category_id: testData.categorieIncomeId,
         value_min: 50,
         value_max: 150,
       };
@@ -1470,7 +1471,7 @@ describe('TransactionsServices - find()', () => {
 
       const result = await transactionService.find(payload);
 
-      expect(result.rows.length).toBe(1);
+      expect(result.rows.length).toBe(5);
     });
 
     test('SUCESSO - Transação de criador especifico e status', async () => {
@@ -1483,7 +1484,7 @@ describe('TransactionsServices - find()', () => {
 
       const result = await transactionService.find(payload);
 
-      expect(result.rows.length).toBe(1);
+      expect(result.rows.length).toBe(2);
     });
 
     test('FALHA - Filtro sem resultado retorna um array vazio e não erro', async () => {
@@ -1507,14 +1508,18 @@ describe('TransactionsServices - find()', () => {
     // primeiro parâmetro seria o payload o segundo seria os campos de ordenação
     // Ordenação explícita - await service.find({payload}, { order_by: 'value', order_dir: 'DESC' });
 
-    const basePayload = {
-      user_id: testData.userId,
-      wallet_id: testData.walletId,
-    };
+    let basePayload;
+
+    beforeEach(() => {
+      basePayload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+      };
+    });
 
     describe('Ordenação padrão', () => {
       test('Sem parâmetros de ordem deve retornar ordenado por due_date ASC', async () => {
-        const result = await transactionService.find(basePayload, {});
+        const result = await transactionService.find(basePayload);
 
         for (let i = 0; i < result.rows.length - 1; i++) {
           const currentDate = new Date(result.rows[i].due_date).getTime();
@@ -1526,7 +1531,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Ordenação por campo especifico', () => {
       test('value - ASC', async () => {
-        const result = await transactionService.find(basePayload, {order_by: 'value', order_dir: 'ASC'});
+        const result = await transactionService.find({ ...basePayload, order_by: 'value', order_dir: 'ASC' });
 
         for (let i = 0; i < result.rows.length - 1; i++) {
           const currentValue = Number(result.rows[i].value);
@@ -1536,7 +1541,7 @@ describe('TransactionsServices - find()', () => {
       });
 
       test('value - DESC', async () => {
-        const result = await transactionService.find(basePayload, {order_by: 'value', order_dir: 'DESC'});
+        const result = await transactionService.find({ ...basePayload, order_by: 'value', order_dir: 'DESC' });
 
         for (let i = 0; i < result.rows.length - 1; i++) {
           const currentValue = Number(result.rows[i].value);
@@ -1546,21 +1551,21 @@ describe('TransactionsServices - find()', () => {
       });
 
       test('due_date - DESC', async () => {
-        const result = await transactionService.find(basePayload, {order_by: 'due_date', order_dir: 'DESC'});
+        const result = await transactionService.find({ ...basePayload, order_by: 'due_date', order_dir: 'DESC' });
 
         for (let i = 0; i < result.rows.length - 1; i++) {
-          const currentValue = Number(result.rows[i].value);
-          const nextValue = Number(result.rows[i + 1].value);
-          expect(currentValue).toBeGreaterThanOrEqual(nextValue);
+          const currentDate = new Date(result.rows[i].due_date).getTime();
+          const nextDate = new Date(result.rows[i + 1].due_date).getTime();
+          expect(currentDate).toBeGreaterThanOrEqual(nextDate);
         } 
       });
     });
 
     describe('Erros de ordenação', () => {
       test('FALHA - order_by com campo que não existe na tabela lança erro de validação', async () => {
-        await expect(transactionService.find(basePayload, { order_by: 'campo_inexistente' }))
+        await expect(transactionService.find({ ...basePayload, order_by: 'campo_inexistente' }))
           .rejects
-          .toThrow('Parâmtro de ordenação inválido');
+          .toThrow('Parâmetro de ordenação inválido');
       });
     });
   });
