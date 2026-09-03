@@ -178,7 +178,7 @@ describe('TransactionsServices - find()', () => {
       categorieExpenseOtherWallet: categorieExpenseOtherWallet.body.item.id,
       counterpartyPayeeOtherWallet: counterpartyPayeeOtherWallet.body.item.id,
       payMethodCreditCardOtherWallet: payMethodCreditCardOtherWallet.body.item.id,
-      otherWalletTransactionId: otherWalletTransaction.rows[0].id,
+      otherWalletTransactionId: otherWalletTransaction.id,
       otherUserData: otherUserData,
       otherWalletData: otherWalletData,
     };

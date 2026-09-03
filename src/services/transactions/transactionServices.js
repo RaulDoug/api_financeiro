@@ -1,4 +1,3 @@
-import BaseServices from '../baseServices.js';
 import pool from '../../config/db.js';
 import crypto from 'node:crypto';
 import {
@@ -26,11 +25,9 @@ import { updateTransferTransactionHelper } from './helpers/update/updateTransfer
 import { revertTransferToRegularTransactionHelper } from './helpers/update/revertingTransferToRegularTransactionHelper.js';
 import { updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
 import { updateAllRecurrentTransactionHelper, updateRecurrentTransactionHelper } from './helpers/update/updateRecurrentTransactionHelper.js';
+import { parse, isValid, isAfter } from 'date-fns';
 
-export default class TransactionServices extends BaseServices {
-  constructor() {
-    super('transactions');
-  }
+export default class TransactionServices {
 
   // Função responsável por criar uma transação e suas regras de negocio
   async create(data) {
@@ -672,5 +669,367 @@ export default class TransactionServices extends BaseServices {
     } finally {
       client.release();
     }
+  }
+
+  async find(data) {
+    const { user_id, wallet_id, order_by, order_dir, ...filterFields } =  data;
+
+    // Validação campos obrigatórios
+    if (!user_id || !wallet_id) {
+      throw new Error('Um ou mais dos campos (user_id e wallet_id) não foram informados na requisição');
+    }
+
+    // Validação de associação de usuário com a carteira
+    await userValidateHelper(user_id, wallet_id);
+
+    // Normalização para array os campos que podem ser múlti valor
+    const multiValueFields = [
+      'bank_account_id',
+      'category_id',
+      'pay_methods_id',
+      'counterparty_id',
+      'creator_user_id',
+      'type',
+      'status',
+    ];
+
+    for (const field of multiValueFields) {
+      if (filterFields[field] !== undefined) {
+        filterFields[field] = Array.isArray(filterFields[field]) ? filterFields[field] : [filterFields[field]];
+      }
+    }
+
+    // Validação se tem algum UUID nos filtros passados se sim confirma se é um UUID válido, se não for retorna erro
+    const uuidArray = ['id', 'installments_group_id', 'transfers_id', 'invoice_id'];
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    for (const field of uuidArray) {
+      if (filterFields[field] !== undefined) {
+        if (!uuidV4Regex.test(filterFields[field])) {
+          const fieldName = field === 'id' ? 'ID' : field;
+          throw new Error(`${fieldName} da transação incorreto ou inexistente`);
+        }
+      }
+    }
+
+    // Validação de FKs (Valores Simples e Múltiplos)
+    const fkFields = ['bank_account_id', 'category_id', 'pay_methods_id', 'counterparty_id', 'creator_user_id'];
+
+    for (const field of fkFields) {
+      if (filterFields[field] !== undefined) {
+        for (const id of filterFields[field]) {
+          if (!uuidV4Regex.test(id)) {
+            throw new Error(`${field} da transação incorreto ou inexistente`);
+          }
+        }
+      }
+    }
+
+    // Validação de Enums
+    const typeWhitelist = ['incomings', 'expenses', 'transfers', 'transfer_in', 'transfer_out'];
+
+    if (filterFields.type !== undefined) {
+      for (const item of filterFields.type) {
+        if (!typeWhitelist.includes(item)) {
+          throw new Error('Tipo de transação inválido');
+        }
+      }
+    }
+
+    const statusWhitelist = ['pending', 'completed', 'cancelled', 'expired'];
+
+    if (filterFields.status !== undefined) {
+      for (const item of filterFields.status) {
+        if (!statusWhitelist.includes(item)) {
+          throw new Error('Status de transação inválido');
+        }
+      }
+    }
+
+    // Validação dos campos numéricos - 'value', 'value_min', 'value_max'
+    const numberFields = ['value', 'value_min', 'value_max'];
+    let valueMin = 0;
+    let valueMax = 0;
+
+    for (const field of numberFields) {
+      if (filterFields[field] !== undefined) {
+        // Validação de valores inválidos, 0 ou negativos
+        const isNumber = typeof filterFields[field] === 'number' && !isNaN(filterFields[field]);
+        const isPositive = filterFields[field] > 0;
+
+        if (!isNumber || !isPositive) {
+          throw new Error('O valor da transação deve ser um número válido');
+        }
+
+        // Validação value_min não pode ser maior que o value_max
+        if (filterFields[field] === 'value_min') {
+          valueMin = filterFields.value_min;
+        }
+
+        if (filterFields[field] === 'value_max') {
+          valueMax = filterFields.value_max;
+        }
+      }
+    }
+
+    if (valueMin > 0) {
+      if (valueMin < valueMax) {
+        throw new Error('O valor mínimo não pode ser maior que o valor máximo');
+      }
+    }
+
+    // Validação current_installment
+    if (filterFields.current_installment !== undefined) {
+      if (filterFields.current_installment <= 0) {
+        throw new Error('current_installment deve ser um número válido');
+      }
+    }
+
+    // Validação de descrição
+    if (filterFields.description !== undefined) {
+      if (filterFields.description.trim().length === 0) {
+        throw new Error('A descrição da transação não pode ser uma string vazia');
+      }
+    }
+
+    // Validação de datas
+    const dateFields = [
+      'purchase_date', 'purchase_date_from', 'purchase_date_to',
+      'due_date', 'due_date_from', 'due_date_to',
+      'payment_date', 'payment_date_from', 'payment_date_to',
+      'created_at', 'created_at_from', 'created_at_to',
+    ];
+
+    const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    for (const field of dateFields) {
+      const value = filterFields[field];
+      if (value === undefined) { continue; };
+
+      // validação do formato
+      if (!isoRegex.test(value)) {
+        throw new Error('Formato de data inválido. Use o formato YYYY-MM-DD');
+      }
+
+      // validação de coêrencia do calendário
+      const parsedDate = parse(value, 'yyyy-MM-dd', new Date());
+
+      if (!isValid(parsedDate)) {
+        throw new Error('Data informada é inválida.');
+      }
+    }
+
+    // Validação de faixa de datas
+    const dateRanges = [
+      ['purchase_date_from', 'purchase_date_to'],
+      ['due_date_from', 'due_date_to'],
+      ['payment_date_from', 'payment_date_to'],
+      ['created_at_from', 'created_at_to'],
+    ];
+
+    for (const [fromKey, toKey] of dateRanges) {
+      const fromVal = filterFields[fromKey];
+      const toVal = filterFields[toKey];
+
+      if (fromVal !== undefined && toVal !== undefined) {
+        const fromDate = parse(fromVal, 'yyyy-MM-dd', new Date());
+        const toDate = parse(toVal, 'yyyy-MM-dd', new Date());
+
+        if (isAfter(fromDate, toDate)) {
+          throw new Error('A data mínima não pode ser maior que a data máxima.');
+        }
+      }
+    }
+
+    // Validação de ordenação
+    const sortingWhitelist = ['due_date', 'value', 'creted_at', 'purchase_date', 'payment_date', 'description', 'status', 'type'];
+    const hasPermittedFields = sortingWhitelist.includes(order_by);
+
+    if (order_by !== undefined ) {
+      if (!hasPermittedFields) {
+        throw new Error('Parâmetro de ordenação inválido');
+      }
+    }
+
+    // Verificação de existência dos IDs únicos
+    for (const field of uuidArray) {
+      if (filterFields[field] !== undefined) {
+        const itemSearch = await pool.query(
+          `SELECT * FROM transactions WHERE ${field} = $1 AND wallet_id = $2`,
+          [filterFields[field], wallet_id],
+        );
+
+        if (itemSearch.rows.length === 0) {
+          throw new Error(`${field} da transação incorreto ou inexistente`);
+        }
+      }
+    }
+
+    // Verificação de FKs nas tabelas relacionadas
+    const fkFieldsAndTables = [
+      {fieldId: 'bank_account_id', table: 'bank_accounts'},
+      {fieldId: 'category_id', table: 'categories'},
+      {fieldId: 'pay_methods_id', table: 'pay_methods'},
+      {fieldId: 'counterparty_id', table: 'counterparties'},
+    ];
+
+    for (const field of fkFieldsAndTables) {
+      if (filterFields[field.fieldId] !== undefined) {
+        for (const id of filterFields[field.fieldId]) {
+          await validateResoureceOwnershipHelper(field.table, id, wallet_id, field.fieldId);
+        }
+      }
+    }
+
+    
+
+    if (filterFields.creator_user_id !== undefined) {
+      const creatorUserValidate = await pool.query(
+        'SELECT * FROM users_wallets WHERE user_id = $1 AND wallet_id = $2',
+        [filterFields.creator_user_id, wallet_id],
+      );
+
+      if (creatorUserValidate.rows.length === 0) {
+        throw new Error('Usuário criador não encontrada ou não pertence a esta carteira.');
+      }
+    }
+
+    // Contrução dinâmica da query SQL
+    let whereClauses = ['t.wallet_id = $1'];
+    let values = [wallet_id];
+    let placeholderCounter = 0;
+
+    // const rangeFieldMap = {
+    //   value_min: { column: 'value', operator: '>=' },
+    //   value_max: { column: 'value', operator: '<=' },
+    //   due_date_from: { column: 'due_date', operator: '>=' },
+    //   due_date_to: { column: 'due_date', operator: '<=' },
+    //   payment_date_from: { column: 'payment_date', operator: '>=' },
+    //   payment_date_to: { column: 'payment_date', operator: '<=' },
+    //   purchase_date_from: { column: 'purchase_date', operator: '>=' },
+    //   purchase_date_to: { column: 'purchase_date', operator: '<=' },
+    //   created_at_from: { column: 'created_at', operator: '>=' },
+    //   created_at_to: { column: 'created_at', operator: '<=' },
+    // };
+
+    const filterFieldsMap = {
+      bank_account_id: { table: 't', column: 'bank_account_id', type: 'uuid_array' },
+      category_id: { table: 't', column: 'category_id', type: 'uuid_array' },
+      counterparty_id: { table: 't', column: 'counterparty_id', type: 'uuid_array' },
+      created_at: { table: 't', column: 'created_at', type: 'date_exact' },
+      created_at_from: { table: 't', column: 'created_at', operator: '>=' },
+      created_at_to: { table: 't', column: 'created_at', operator: '<=' },
+      creator_user_id: { table: 't', column: 'creator_user_id', type: 'uuid_array' },
+      current_installment: { table: 't', column: 'current_installment', operator: '=' },
+      description: { table: 't', column: 'description', type: 'ilike' },
+      due_date: { table: 't', column: 'due_date', type: 'date_exact' },
+      due_date_from: { table: 't', column: 'due_date', operator: '>=' },
+      due_date_to: { table: 't', column: 'due_date', operator: '<=' },
+      id: { table: 't', column: 'id', operator: '=' },
+      installments_group_id: { table: 't', column: 'installments_group_id', operator: '=' },
+      invoice_id: { table: 't', column: 'invoice_id', operator: '=' },
+      pay_methods_id: { table: 't', column: 'pay_methods_id', type: 'uuid_array' },
+      payment_date: { table: 't', column: 'payment_date', type: 'date_exact' },
+      payment_date_from: { table: 't', column: 'payment_date', operator: '>=' },
+      payment_date_to: { table: 't', column: 'payment_date', operator: '<=' },
+      purchase_date: { table: 't', column: 'purchase_date', type: 'date_exact' },
+      purchase_date_from: { table: 't', column: 'purchase_date', operator: '>=' },
+      purchase_date_to: { table: 't', column: 'purchase_date', operator: '<=' },
+      status: { table: 't', column: 'status', type: 'text_array' },
+      transfer_id: { table: 't', column: 'transfers_id', operator: '=' }, // Nome da coluna no banco é transfers_id
+      type: { table: 't', column: 'type', type: 'text_array' },
+      value: { table: 't', column: 'value', operator: '=' },
+      value_min: { table: 't', column: 'value', operator: '>=' },
+      value_max: { table: 't', column: 'value', operator: '<=' },
+    };
+
+    for (const [field, value] of Object.entries(filterFields)) {
+      if (value === undefined) continue;
+
+      const config = filterFieldsMap[field];
+      if (!config) continue;
+
+      placeholderCounter += 1;
+      const target = `${config.table}.${config.column}`;
+
+      if (config.operator) {
+        whereClauses.push(`${target} ${config.operator} $${placeholderCounter}`);
+        values.push(value);
+      } else if (config.type === 'uuid_array') {
+        whereClauses.push(`${target} = ANY($${placeholderCounter}::uuid[])`);
+        values.push(Array.isArray(value) ? value : [value]);
+      } else if (config.type === 'text_array') {
+        whereClauses.push(`${target} = ANY($${placeholderCounter}::text[])`);
+        values.push(Array.isArray(value) ? value : [value]);
+      } else if (config.type === 'date_exact') {
+        whereClauses.push(`${target}::date = $${placeholderCounter}::date`);
+        values.push(value);
+      } else if (config.type === 'ilike') {
+        whereClauses.push(`${target} ILIKE $${placeholderCounter}`);
+        values.push(`%${value}%`);
+      }
+    }
+
+    let orderByClauses = ['ORDER BY due_date ASC'];
+
+    if (order_by !== undefined) {
+      orderByClauses = [`ORDER BY ${order_by} ${order_dir === 'DESC' ? 'DESC' : 'ASC'}`];
+    }
+
+
+    // Execução e formatação do retorno
+    const client = await pool.connect();
+
+    try {
+      const queryText = `
+        SELECT 
+          t.id,
+          t.value,
+          t.description,
+          t.type,
+          t.status,
+          t.due_date,
+          t.payment_date,
+          t.purchase_date,
+          b.bank_name AS bank_account_name,
+          c.name AS category_name,
+          p.name AS pay_method_name,
+          cp.name AS counterparty_name,
+          u.name AS creator_user_name
+        FROM transactions t
+        LEFT JOIN bank_accounts b ON b.id = t.bank_account_id
+        LEFT JOIN categories c ON c.id = t.category_id
+        LEFT JOIN pay_methods p ON p.id = t.pay_methods_id
+        LEFT JOIN counterparties cp ON cp.id = t.counterparty_id
+        LEFT JOIN users u ON u.id = t.creator_user_id
+        WHERE ${whereClauses.join(' AND ')}
+        ${orderByClauses};
+      `;
+
+      const result = await pool.query(queryText, values);
+
+      if (filterFields.description !== undefined && result.rows.length === 0) {
+        return {
+          rows: [],
+          message: 'Nenhuma transação encontrada com a descrição fornecida',
+        };
+      }
+
+      if (result.rows.length === 0) {
+        return { 
+          rows: [],
+          message: 'Nenhuma transação localizada para os filtros informados',
+        };
+      }
+
+      return { rows: result.rows };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    
   }
 }

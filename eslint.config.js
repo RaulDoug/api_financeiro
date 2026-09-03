@@ -19,7 +19,7 @@ export default [
       'no-unused-vars': ['warn', { 'argsIgnorePattern': '^_' }],
       'no-undef': 'error',
       'eqeqeq': 'error',
-      'curly': 'error',
+      'curly': ['error', 'multi-line'],
       'semi': ['error', 'always'],
       'quotes': ['error', 'single', { 'avoidEscape': true }],
       'indent': ['error', 2, { 'SwitchCase': 1 }],
