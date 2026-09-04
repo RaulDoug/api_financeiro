@@ -72,7 +72,7 @@ export const creditCardHelper = async (data, payMethodValues, payload, client) =
   }
 
   // Validação de número de parcelas menor que 0
-  if (data.installments_number < 0) {
+  if (data.installments_number <= 0) {
     throw new Error('O número de parcelas não pode ser menor que 1');
   }
 
