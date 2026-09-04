@@ -91,12 +91,14 @@ export const updateBankAccountBalanceHelper = async (bankAccountId, newBalance, 
 };
 
 export const validateResoureceOwnershipHelper = async (table, resouserId, walletId, resourceLabel) => {
+  const ids = Array.isArray(resouserId) ?  resouserId : [resouserId];
+  
   const result = await pool.query(
-    `SELECT id FROM "${table}" WHERE id = $1 AND wallet_id = $2`,
-    [resouserId, walletId],
+    `SELECT id FROM "${table}" WHERE id = ANY($1::uuid[]) AND wallet_id = $2`,
+    [ids, walletId],
   );
 
-  if (result.rows.length === 0) {
+  if (result.rows.length !== new Set(ids).size) {
     throw new Error(`${resourceLabel} não encontrada ou não pertence a esta carteira.`);
   }
 

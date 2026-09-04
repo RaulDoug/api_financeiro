@@ -122,7 +122,7 @@ export default class TransactionServices {
           throw new Error('Nenhuma conta selecionada para receber a transferência');
         }
 
-        const transferId = crypto.randomUUID(); // Cria o transfer_id para adicionar nas transações
+        const transferId = crypto.randomUUID(); // Cria o transfers_id para adicionar nas transações
         const bankAccountOutBalance = bankAccount; // Passa um nome mais descritivo para esta operação para o bank_account
         const bankAccountDestinyBalance = await bankAccountHelper(data.destiny_bank_account_id, client); // Pega o valor em conta da conta de destino
 
@@ -525,7 +525,6 @@ export default class TransactionServices {
     // Função de reverter e validar saldo
     async function revertingAndValidadeBalance(bankAccountId, value, type, client) {
       const { accountBalance, accountAllowNegative } = await bankAccountHelper(bankAccountId, client);
-      console.log('Revertendo saldo da conta bancária', accountBalance, 'com valor de', value, 'e tipo de transação', type);
       const newBalance = revertingBalance(Number(accountBalance), Number(value), type);
 
       if (newBalance < 0 && accountAllowNegative === false) {
@@ -643,9 +642,7 @@ export default class TransactionServices {
           };
         }
       } else { // Exclusão de transação simples
-        console.log('Exclusão de transação simples');
         if (transactionValues.status === 'completed') {
-          console.log('Revertendo saldo da transação simples');
           await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type, client);
         }
 
@@ -700,7 +697,7 @@ export default class TransactionServices {
     }
 
     // Validação se tem algum UUID nos filtros passados se sim confirma se é um UUID válido, se não for retorna erro
-    const uuidArray = ['id', 'installments_group_id', 'transfers_id', 'invoice_id'];
+    const uuidArray = ['id', 'installments_group_id', 'transfers_id'];
     const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
     for (const field of uuidArray) {
@@ -709,6 +706,14 @@ export default class TransactionServices {
           const fieldName = field === 'id' ? 'ID' : field;
           throw new Error(`${fieldName} da transação incorreto ou inexistente`);
         }
+      }
+    }
+
+    // Validação invoice_id
+    if (filterFields.invoice_id !== undefined) {
+      const invoiceIdRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_\d{4}\/(0[1-9]|1[0-2])$/i;
+      if (!invoiceIdRegex.test(filterFields.invoice_id)) {
+        throw new Error('invoice_id da transação incorreto ou inexistente');
       }
     }
 
@@ -762,25 +767,31 @@ export default class TransactionServices {
         }
 
         // Validação value_min não pode ser maior que o value_max
-        if (filterFields[field] === 'value_min') {
-          valueMin = filterFields.value_min;
+        if (field === 'value_min') {
+          if (filterFields[field] !== undefined) {
+            valueMin = filterFields.value_min;
+          }
         }
 
-        if (filterFields[field] === 'value_max') {
-          valueMax = filterFields.value_max;
+        if (field === 'value_max') {
+          if (filterFields[field] !== undefined) {
+            valueMax = filterFields.value_max;
+          }
         }
       }
     }
 
-    if (valueMin > 0) {
-      if (valueMin < valueMax) {
+    if (valueMin > 0 && (valueMax !== 0 || filterFields.value_max !== undefined)) {
+      if (valueMin > valueMax) {
         throw new Error('O valor mínimo não pode ser maior que o valor máximo');
       }
     }
 
     // Validação current_installment
     if (filterFields.current_installment !== undefined) {
-      if (filterFields.current_installment <= 0) {
+      const isNumber = typeof filterFields.current_installment === 'number' && !isNaN(filterFields.current_installment);
+      const isPositive = filterFields.current_installment > 0;
+      if (!isNumber || !isPositive) {
         throw new Error('current_installment deve ser um número válido');
       }
     }
@@ -852,7 +863,8 @@ export default class TransactionServices {
     }
 
     // Verificação de existência dos IDs únicos
-    for (const field of uuidArray) {
+    const uuidArrayForValidation = ['id', 'installments_group_id', 'transfers_id', 'invoice_id'];
+    for (const field of uuidArrayForValidation) {
       if (filterFields[field] !== undefined) {
         const itemSearch = await pool.query(
           `SELECT * FROM transactions WHERE ${field} = $1 AND wallet_id = $2`,
@@ -860,7 +872,8 @@ export default class TransactionServices {
         );
 
         if (itemSearch.rows.length === 0) {
-          throw new Error(`${field} da transação incorreto ou inexistente`);
+          const fieldName = field === 'id' ? 'ID' : field;
+          throw new Error(`${fieldName} da transação incorreto ou inexistente`);
         }
       }
     }
@@ -875,8 +888,10 @@ export default class TransactionServices {
 
     for (const field of fkFieldsAndTables) {
       if (filterFields[field.fieldId] !== undefined) {
-        for (const id of filterFields[field.fieldId]) {
-          await validateResoureceOwnershipHelper(field.table, id, wallet_id, field.fieldId);
+        try {
+          await validateResoureceOwnershipHelper(field.table, filterFields[field.fieldId], wallet_id, field.fieldId);
+        } catch {
+          throw new Error(`${field.fieldId} da transação incorreto ou inexistente`);
         }
       }
     }
@@ -884,41 +899,29 @@ export default class TransactionServices {
     
 
     if (filterFields.creator_user_id !== undefined) {
+      const usersIds = Array.isArray(filterFields.creator_user_id) ?  filterFields.creator_user_id : [filterFields.creator_user_id];
       const creatorUserValidate = await pool.query(
-        'SELECT * FROM users_wallets WHERE user_id = $1 AND wallet_id = $2',
-        [filterFields.creator_user_id, wallet_id],
+        'SELECT * FROM users_wallets WHERE user_id = ANY($1::uuid[]) AND wallet_id = $2',
+        [usersIds, wallet_id],
       );
 
       if (creatorUserValidate.rows.length === 0) {
-        throw new Error('Usuário criador não encontrada ou não pertence a esta carteira.');
+        throw new Error('creator_user_id da transação incorreto ou inexistente');
       }
     }
 
     // Contrução dinâmica da query SQL
     let whereClauses = ['t.wallet_id = $1'];
     let values = [wallet_id];
-    let placeholderCounter = 0;
-
-    // const rangeFieldMap = {
-    //   value_min: { column: 'value', operator: '>=' },
-    //   value_max: { column: 'value', operator: '<=' },
-    //   due_date_from: { column: 'due_date', operator: '>=' },
-    //   due_date_to: { column: 'due_date', operator: '<=' },
-    //   payment_date_from: { column: 'payment_date', operator: '>=' },
-    //   payment_date_to: { column: 'payment_date', operator: '<=' },
-    //   purchase_date_from: { column: 'purchase_date', operator: '>=' },
-    //   purchase_date_to: { column: 'purchase_date', operator: '<=' },
-    //   created_at_from: { column: 'created_at', operator: '>=' },
-    //   created_at_to: { column: 'created_at', operator: '<=' },
-    // };
+    let placeholderCounter = 1;
 
     const filterFieldsMap = {
       bank_account_id: { table: 't', column: 'bank_account_id', type: 'uuid_array' },
       category_id: { table: 't', column: 'category_id', type: 'uuid_array' },
       counterparty_id: { table: 't', column: 'counterparty_id', type: 'uuid_array' },
       created_at: { table: 't', column: 'created_at', type: 'date_exact' },
-      created_at_from: { table: 't', column: 'created_at', operator: '>=' },
-      created_at_to: { table: 't', column: 'created_at', operator: '<=' },
+      created_at_from: { table: 't', column: 'created_at', operator: '>=', type: 'date_range' },
+      created_at_to: { table: 't', column: 'created_at', operator: '<=', type: 'date_range' },
       creator_user_id: { table: 't', column: 'creator_user_id', type: 'uuid_array' },
       current_installment: { table: 't', column: 'current_installment', operator: '=' },
       description: { table: 't', column: 'description', type: 'ilike' },
@@ -936,7 +939,7 @@ export default class TransactionServices {
       purchase_date_from: { table: 't', column: 'purchase_date', operator: '>=' },
       purchase_date_to: { table: 't', column: 'purchase_date', operator: '<=' },
       status: { table: 't', column: 'status', type: 'text_array' },
-      transfer_id: { table: 't', column: 'transfers_id', operator: '=' }, // Nome da coluna no banco é transfers_id
+      transfers_id: { table: 't', column: 'transfers_id', operator: '=' }, // Nome da coluna no banco é transfers_id
       type: { table: 't', column: 'type', type: 'text_array' },
       value: { table: 't', column: 'value', operator: '=' },
       value_min: { table: 't', column: 'value', operator: '>=' },
@@ -953,13 +956,17 @@ export default class TransactionServices {
       const target = `${config.table}.${config.column}`;
 
       if (config.operator) {
-        whereClauses.push(`${target} ${config.operator} $${placeholderCounter}`);
+        if (config.type === 'date_range') {
+          whereClauses.push(`${target}::date ${config.operator} $${placeholderCounter}::date`);
+        } else {
+          whereClauses.push(`${target} ${config.operator} $${placeholderCounter}`);
+        }
         values.push(value);
       } else if (config.type === 'uuid_array') {
         whereClauses.push(`${target} = ANY($${placeholderCounter}::uuid[])`);
         values.push(Array.isArray(value) ? value : [value]);
       } else if (config.type === 'text_array') {
-        whereClauses.push(`${target} = ANY($${placeholderCounter}::text[])`);
+        whereClauses.push(`${target}::text = ANY($${placeholderCounter}::text[])`);
         values.push(Array.isArray(value) ? value : [value]);
       } else if (config.type === 'date_exact') {
         whereClauses.push(`${target}::date = $${placeholderCounter}::date`);
@@ -991,11 +998,15 @@ export default class TransactionServices {
           t.due_date,
           t.payment_date,
           t.purchase_date,
+          t.transfers_id,
+          t.invoice_id,
+          t.current_installment,
           b.bank_name AS bank_account_name,
           c.name AS category_name,
           p.name AS pay_method_name,
           cp.name AS counterparty_name,
-          u.name AS creator_user_name
+          u.name AS creator_user_name,
+          t.created_at
         FROM transactions t
         LEFT JOIN bank_accounts b ON b.id = t.bank_account_id
         LEFT JOIN categories c ON c.id = t.category_id
@@ -1005,6 +1016,8 @@ export default class TransactionServices {
         WHERE ${whereClauses.join(' AND ')}
         ${orderByClauses};
       `;
+      // console.log('Query Text: ' + queryText);
+      // console.log('Value: ' + values);
 
       const result = await pool.query(queryText, values);
 

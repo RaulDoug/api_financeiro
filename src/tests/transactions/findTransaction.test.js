@@ -5,12 +5,12 @@ import { createAuthenticatedUser, createWallet } from '../testUtils.js';
 import request from 'supertest';
 import app from '../../app.js';
 import pool from '../../config/db.js';
+import { format } from 'date-fns';
 
-const createTransaction = async (service, testData, overrides = {}) => {
+const createTransaction = async (service, testData, name, overrides = {}) => {
   const type = overrides.type || 'NO TYPE';
-  const status = overrides.status || 'NO STATUS';
-  const name = overrides.name || 'NO NAME';
-  const description = `Transação de tipo: ${type} e status: ${status} - ${name}`;
+  const status = overrides.status || 'NO STATUS'; 
+  const description = overrides.description || `Transação de tipo: ${type} e status: ${status} - ${name}`;
 
   return service.create({
     wallet_id: testData.walletId,
@@ -76,7 +76,7 @@ describe('TransactionsServices - find()', () => {
 
     
     for (const item of transactionsValuesList) {
-      transactions[item.name] = await createTransaction(transactionService, testData, item.overrides);
+      transactions[item.name] = await createTransaction(transactionService, testData, item.name, item.overrides);
     }
 
     // Usuário B vinculado a mesma carteira
@@ -101,7 +101,7 @@ describe('TransactionsServices - find()', () => {
       value: 50,
       payment_date: '2026-07-05',
     };
-    const userBTransaction = await createTransaction(transactionService, testData, userBTransactionOverrides);
+    const userBTransaction = await createTransaction(transactionService, testData, 'userBTransaction', userBTransactionOverrides);
     transactions.userBTransaction = userBTransaction;
 
     // Outra carteria e usuário
@@ -195,13 +195,13 @@ describe('TransactionsServices - find()', () => {
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          id: transactions.expensePending.rows[0].id,
+          id: transactions.expensePending.id,
         };
         
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
       });
 
       test('FALHA - Deve retornar um erro quando o formato do UUID for inválido', async () => {
@@ -237,7 +237,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por installments_group_id', () => {
       test('SUCESSO - Deve retornar todas as transações do mesmo grupo de parcelas quando filtrado por installments_group_id', async () => {
-        const installmentsGroupId = transactions.expenseCreditCard.rows[0].installments_group_id;
+        const installmentsGroupId = transactions.expenseCreditCard.installments_group_id;
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
@@ -277,8 +277,8 @@ describe('TransactionsServices - find()', () => {
           payment_date: '2026-07-05',
         };
 
-        const creditCardTransactionOtherWallet = await createTransaction(transactionService, testData, creditCardTransactionOtherWalletPayload);
-        const installmentsGroupIdOtherWallet = creditCardTransactionOtherWallet.rows[0].installments_group_id;
+        const creditCardTransactionOtherWallet = await createTransaction(transactionService, testData, 'creditCardTransactionOtherWallet', creditCardTransactionOtherWalletPayload);
+        const installmentsGroupIdOtherWallet = creditCardTransactionOtherWallet.installments_group_id;
         
         const payload = {
           user_id: testData.userId,
@@ -290,13 +290,13 @@ describe('TransactionsServices - find()', () => {
       });
     });
 
-    describe('Filtro por transfer_id', () => {
-      test('SUCESSO - Deve retornar todas as transações do mesmo grupo de transferências quando filtrado por transfer_id', async () => {
+    describe('Filtro por transfers_id', () => {
+      test('SUCESSO - Deve retornar todas as transações do mesmo grupo de transferências quando filtrado por transfers_id', async () => {
         const transferId = transactions.transfers.expenseRow.transfers_id;
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transfer_id: transferId,
+          transfers_id: transferId,
         };
 
         const result = await transactionService.find(payload);
@@ -308,17 +308,17 @@ describe('TransactionsServices - find()', () => {
         expect(transferIn).toHaveLength(1);
       });
 
-      test('FALHA - Deve retornar um erro quando o transfer_id for inválido', async () => {
+      test('FALHA - Deve retornar um erro quando o transfers_id for inválido', async () => {
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transfer_id: 'invalid-uuid-format',
+          transfers_id: 'invalid-uuid-format',
         };
 
-        await expect(transactionService.find(payload)).rejects.toThrow('transfer_id da transação incorreto ou inexistente');
+        await expect(transactionService.find(payload)).rejects.toThrow('transfers_id da transação incorreto ou inexistente');
       });
 
-      test('FALHA - Deve retornar um erro quando o transfer_id for vinculado a outra carteira', async () => {
+      test('FALHA - Deve retornar um erro quando o transfers_id for vinculado a outra carteira', async () => {
         const otherWalletBankAccountB = await request(app)
           .post('/api/bank-account/register')
           .set('Authorization', itensOnWalletB.otherUserData.authHeader)
@@ -345,22 +345,29 @@ describe('TransactionsServices - find()', () => {
           payment_date: '2026-07-05',
         };
 
-        const transferTransactionOtherWallet = await createTransaction(transactionService, testData, transferTransactionOtherWalletPayload);
+        const transferTransactionOtherWallet = await createTransaction(transactionService, testData, 'transferTransactionOtherWallet', transferTransactionOtherWalletPayload);
         const transferIdOtherWallet = transferTransactionOtherWallet.expenseRow.transfers_id;
 
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          transfer_id: transferIdOtherWallet,
+          transfers_id: transferIdOtherWallet,
         };
 
-        await expect(transactionService.find(payload)).rejects.toThrow('transfer_id da transação incorreto ou inexistente');
+        await expect(transactionService.find(payload)).rejects.toThrow('transfers_id da transação incorreto ou inexistente');
       });
     });
 
     describe('Filtro por invoice_id', () => {
       test('SUCESSO - Deve retornar todas as transações do mesmo grupo de faturas quando filtrado por invoice_id', async () => {
+        const expenseCreditCard2 = {
+          name: 'expenseCreditCard2',
+          overrides: {type: 'expenses', pay_methods_id: testData.payMethodCreditCardId, value: 100, purchase_date: '2026-08-28', installments_number: 2, category_id: testData.categorieExpenseId},
+        };
+
+        await createTransaction(transactionService, testData, 'expenseCreditCard2', expenseCreditCard2.overrides);
+
         const invoiceId = transactions.expenseCreditCard.rows[0].invoice_id;
         const payload = {
           user_id: testData.userId,
@@ -401,15 +408,15 @@ describe('TransactionsServices - find()', () => {
           payment_date: '2026-07-05',
         };
 
-        const creditCardTransactionOtherWallet = await createTransaction(transactionService, testData, creditCardTransactionOtherWalletPayload);
-        const invoiceIdOtherWallet = creditCardTransactionOtherWallet.rows[0].invoice_id; 
+        const creditCardTransactionOtherWallet = await createTransaction(transactionService, testData, 'creditCardTransactionOtherWallet', creditCardTransactionOtherWalletPayload);
+        const invoiceIdOtherWallet = creditCardTransactionOtherWallet.invoice_id; 
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
           invoice_id: invoiceIdOtherWallet,
         };
-
+        
         await expect(transactionService.find(payload)).rejects.toThrow('invoice_id da transação incorreto ou inexistente');
       });
     });
@@ -794,7 +801,6 @@ describe('TransactionsServices - find()', () => {
         expect(hasForbiddenType).toBe(false);
       });
 
-
       test('FALHA - Deve retornar um erro quando o type for inválido', async () => {
         const payload = {
           user_id: testData.userId,
@@ -841,7 +847,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(3);
+        expect(result.rows.length).toBe(5);
         const hasPending = result.rows.some(item => item.status === 'pending');
         expect(hasPending).toBe(false);
       });
@@ -855,7 +861,7 @@ describe('TransactionsServices - find()', () => {
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(9);
+        expect(result.rows.length).toBe(11);
       });
 
       test('FALHA - Deve retornar um erro quando o status for inválido', async () => {
@@ -920,14 +926,14 @@ describe('TransactionsServices - find()', () => {
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          value_min: 100,
+          value_min: 50,
         };
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(4);
+        expect(result.rows.length).toBe(5);
         result.rows.forEach(item => {
-          expect(Number(item.value)).toBeGreaterThanOrEqual(100);
+          expect(Number(item.value)).toBeGreaterThanOrEqual(50);
         });
       });
 
@@ -935,12 +941,12 @@ describe('TransactionsServices - find()', () => {
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          value_max: 50,
+          value_max: 30,
         };
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(7);
+        expect(result.rows.length).toBe(6);
         result.rows.forEach(item => {
           expect(Number(item.value)).toBeLessThanOrEqual(50);
         });
@@ -955,7 +961,6 @@ describe('TransactionsServices - find()', () => {
 
         await expect(transactionService.find(payload)).rejects.toThrow('O valor da transação deve ser um número válido');
       });
-
 
       test('FALHA - Deve retornar um erro quando o valor é 0 ou negativo', async () => {
         const payload = {
@@ -1173,7 +1178,7 @@ describe('TransactionsServices - find()', () => {
           description: "O'Transação com acentuação: ç, ã, é, ü",
         };
 
-        await createTransaction(transactionService, testData, descriptionWithSpecialCharsOverrides);
+        await createTransaction(transactionService, testData, 'descriptionWithSpecialCharsOverrides', descriptionWithSpecialCharsOverrides);
 
         const payload = {
           user_id: testData.userId,
@@ -1197,7 +1202,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por purchase_date', () => {
       test('SUCESSO - Filtrar por data exata de compra', async () => {
-        await pool.query("UPDATE transactions SET purchase_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.rows[0].id]);
+        await pool.query("UPDATE transactions SET purchase_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1208,32 +1213,32 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].purchase_date).toBe('2026-08-20');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].purchase_date, 'yyyy-MM-dd')).toBe('2026-08-20');
       });
 
       test('SUCESSO - Filtra por faixa de datas de compra', async () => {
-        await pool.query("UPDATE transactions SET purchase_date = '2026-08-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET purchase_date = '2026-08-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
+        await pool.query("UPDATE transactions SET purchase_date = '2026-08-15' WHERE id = $1", [transactions.expensePending.id]);
+        await pool.query("UPDATE transactions SET purchase_date = '2026-08-25' WHERE id = $1", [transactions.incomingComplete.id]);
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          purchase_date_from: '2026-08-10',
-          purchase_date_to: '2026-08-20',
+          purchase_date_from: '2026-08-15',
+          purchase_date_to: '2026-08-25',
         };
 
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(2);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].purchase_date).toBe('2026-08-15');
-        expect(result.rows[1].id).toBe(transactions.incomingComplete.rows[0].id);
-        expect(result.rows[1].purchase_date).toBe('2026-08-25');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].purchase_date, 'yyyy-MM-dd')).toBe('2026-08-15');
+        expect(result.rows[1].id).toBe(transactions.incomingComplete.id);
+        expect(format(result.rows[1].purchase_date, 'yyyy-MM-dd')).toBe('2026-08-25');
       });
 
       test('SUCESSO - Filtra por data de compra mínima', async () => {
-        await pool.query("UPDATE transactions SET purchase_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
+        await pool.query("UPDATE transactions SET purchase_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1244,8 +1249,8 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].purchase_date).toBe('2026-09-15');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].purchase_date, 'yyyy-MM-dd')).toBe('2026-09-15');
       });
 
       test('FALHA - Deve retornar um erro quando a data passada for no formato inválido', async () => {
@@ -1282,7 +1287,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por due_date', () => {
       test('SUCESSO - Filtrar por data exata de vencimento', async () => {
-        await pool.query("UPDATE transactions SET due_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.rows[0].id]);
+        await pool.query("UPDATE transactions SET due_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.id]);
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
@@ -1292,26 +1297,28 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].due_date).toBe('2026-08-20');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].due_date, 'yyyy-MM-dd')).toBe('2026-08-20');
       });
 
       test('SUCESSO - Filtra por faixa de datas de vencimento', async () => {
-        await pool.query("UPDATE transactions SET due_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET due_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
+        await pool.query("UPDATE transactions SET due_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.id]);
+        await pool.query("UPDATE transactions SET due_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.id]);
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          due_date_from: '2026-09-10',
-          due_date_to: '2026-09-20',
+          due_date_from: '2026-09-15',
+          due_date_to: '2026-09-25',
         };
 
         const result = await transactionService.find(payload);
 
-        expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].due_date).toBe('2026-09-15');
+        expect(result.rows.length).toBe(2);
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].due_date, 'yyyy-MM-dd')).toBe('2026-09-15');
+        expect(result.rows[1].id).toBe(transactions.incomingComplete.id);
+        expect(format(result.rows[1].due_date, 'yyyy-MM-dd')).toBe('2026-09-25');
       });
 
       test('FALHA - Deve retornar um erro quando o formato for inválido', async () => {
@@ -1338,7 +1345,7 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por payment_date', () => {
       test('SUCESSO - Filtrar por data exata de pagamento', async () => {
-        await pool.query("UPDATE transactions SET payment_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.rows[0].id]);
+        await pool.query("UPDATE transactions SET payment_date = '2026-08-20' WHERE id = $1", [transactions.expensePending.id]);
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
@@ -1348,13 +1355,13 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].payment_date).toBe('2026-08-20');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].payment_date, 'yyyy-MM-dd')).toBe('2026-08-20');
       });
 
       test('SUCESSO - Filtra por faixa de datas de pagamento', async () => {
-        await pool.query("UPDATE transactions SET payment_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.rows[0].id]);
-        await pool.query("UPDATE transactions SET payment_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.rows[0].id]);
+        await pool.query("UPDATE transactions SET payment_date = '2026-09-15' WHERE id = $1", [transactions.expensePending.id]);
+        await pool.query("UPDATE transactions SET payment_date = '2026-09-25' WHERE id = $1", [transactions.incomingComplete.id]);
 
         const payload = {
           user_id: testData.userId,
@@ -1366,8 +1373,8 @@ describe('TransactionsServices - find()', () => {
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].payment_date).toBe('2026-09-15');
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].payment_date, 'yyyy-MM-dd')).toBe('2026-09-15');
       });
 
       test('FALHA - Deve retornar um erro quando o formato for inválido', async () => {
@@ -1383,33 +1390,49 @@ describe('TransactionsServices - find()', () => {
 
     describe('Filtro por created_at', () => {
       test('SUCESSO - Filtrar por data exata de criação', async () => {
+        await pool.query(
+          'UPDATE transactions SET created_at = $1 WHERE id = $2',
+          ['2026-08-10 12:00:00Z', transactions.expensePending.id],
+        );
+
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          created_at: transactions.expensePending.rows[0].created_at,
+          created_at: '2026-08-10',
         };
 
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(1);
-        expect(result.rows[0].id).toBe(transactions.expensePending.rows[0].id);
-        expect(result.rows[0].created_at).toBe(transactions.expensePending.rows[0].created_at);
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].created_at, 'yyyy-MM-dd')).toBe('2026-08-10');
       });
 
       test('SUCESSO - Filtra por faixa de datas de criação', async () => {
-        const createdAt1 = transactions.expensePending.rows[0].created_at;
-        const createdAt2 = transactions.incomingComplete.rows[0].created_at;
+        await pool.query(
+          'UPDATE transactions SET created_at = $1 WHERE id = $2 RETURNING created_at',
+          ['2026-08-10 12:00:00Z', transactions.expensePending.id],
+        );
+
+        await pool.query(
+          'UPDATE transactions SET created_at = $1 WHERE id = $2 RETURNING created_at',
+          ['2026-08-15 12:00:00Z', transactions.incomingComplete.id],
+        );
 
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
-          created_at_from: createdAt1,
-          created_at_to: createdAt2,
+          created_at_from: '2026-08-10',
+          created_at_to: '2026-08-15',
         };
 
         const result = await transactionService.find(payload);
 
         expect(result.rows.length).toBe(2);
+        expect(result.rows[0].id).toBe(transactions.expensePending.id);
+        expect(format(result.rows[0].created_at, 'yyyy-MM-dd')).toBe('2026-08-10');
+        expect(result.rows[1].id).toBe(transactions.incomingComplete.id);
+        expect(format(result.rows[1].created_at, 'yyyy-MM-dd')).toBe('2026-08-15');
       });
     });
   });
@@ -1451,14 +1474,14 @@ describe('TransactionsServices - find()', () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
-        category_id: testData.categorieIncomeId,
+        category_id: testData.categorieExpenseId,
         value_min: 50,
         value_max: 150,
       };
 
       const result = await transactionService.find(payload);
 
-      expect(result.rows.length).toBe(1);
+      expect(result.rows.length).toBe(2);
     });
 
     test('SUCESSO - Busca por descrição e tipo de transação, garantindo que apenas transações que correspondam a ambos os critérios sejam retornadas', async () => {
@@ -1478,13 +1501,13 @@ describe('TransactionsServices - find()', () => {
       const payload = {
         user_id: testData.userId,
         wallet_id: testData.walletId,
-        creator_user_id: testData.userId,
+        creator_user_id: testData.userIdB,
         status: 'completed',
       };
 
       const result = await transactionService.find(payload);
 
-      expect(result.rows.length).toBe(2);
+      expect(result.rows.length).toBe(1);
     });
 
     test('FALHA - Filtro sem resultado retorna um array vazio e não erro', async () => {
