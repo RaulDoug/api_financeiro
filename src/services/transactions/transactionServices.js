@@ -26,6 +26,7 @@ import { revertTransferToRegularTransactionHelper } from './helpers/update/rever
 import { updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
 import { updateAllRecurrentTransactionHelper, updateRecurrentTransactionHelper } from './helpers/update/updateRecurrentTransactionHelper.js';
 import { parse, isValid, isAfter } from 'date-fns';
+import AppError from '../../errors/AppError.js';
 
 export default class TransactionServices {
 
@@ -68,11 +69,11 @@ export default class TransactionServices {
         const newBalance = Number(bankAccount.accountBalance) - Number(value);
 
         if (!data.due_date) {
-          throw new Error('Os campos de data da transação e data de vencimento são obrigatórios');
+          throw new AppError('Os campos de data da transação e data de vencimento são obrigatórios');
         }
 
         if (!bankAccount.accountAllowNegative && newBalance < 0) {
-          throw new Error('Conta bancária com saldo insuficente para realizar a transação');
+          throw new AppError('Conta bancária com saldo insuficente para realizar a transação', 422);
         }
 
         // Validação se a despesa tem o status de completed ou não.
@@ -84,7 +85,7 @@ export default class TransactionServices {
       }
 
       if (data.is_recurrent === true && payMethodValues.rows[0].credit_card === true && data.type === 'incomings') {
-        throw new Error('Lançamento de entradas como recorrente não é permitido para o método de pagamento definido como cartão de crédito');
+        throw new AppError('Lançamento de entradas como recorrente não é permitido para o método de pagamento definido como cartão de crédito', 422);
       }
 
       // Lançamento de despesas com a forma de pagamento definida como credit_card
@@ -104,7 +105,7 @@ export default class TransactionServices {
         const newBalance = Number(bankAccount.accountBalance) + Number(value);
 
         if (payMethodValues.rows[0].credit_card === true) {
-          throw new Error('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito');
+          throw new AppError('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito', 422);
         }
 
         // Validação se a entrada tem o status de completed ou não.
@@ -119,7 +120,7 @@ export default class TransactionServices {
       if (data.type === 'transfers') {
         // Validação se a conta bancária de destino foi passada nos parâmetros
         if (!data.destiny_bank_account_id) {
-          throw new Error('Nenhuma conta selecionada para receber a transferência');
+          throw new AppError('Nenhuma conta selecionada para receber a transferência', 400);
         }
 
         const transferId = crypto.randomUUID(); // Cria o transfers_id para adicionar nas transações
@@ -128,7 +129,7 @@ export default class TransactionServices {
 
         // Validação para confirmar se a conta de origem e conta de destino não são as mesmas
         if (data.bank_account_id === data.destiny_bank_account_id) {
-          throw new Error('Conta bancária de destino não pode ser a mesma da conta de origem');
+          throw new AppError('Conta bancária de destino não pode ser a mesma da conta de origem', 400);
         }
 
         // Valida se a conta bancária de destino existe no banco de dados
@@ -151,7 +152,7 @@ export default class TransactionServices {
           const expenseAccountNewBalance = Number(bankAccountOutBalance.accountBalance) - Number(value); // Calcula o novo valor da conta de origem
           // Valida se a conta permite valor negativo ou se não permitir valida se tem saldo suficiente
           if (!bankAccountOutBalance.allowNegative && expenseAccountNewBalance < 0) {
-            throw new Error('Conta bancária com saldo insuficente para realizar a transação');
+            throw new AppError('Conta bancária com saldo insuficente para realizar a transação', 422);
           }
 
           await updateBankAccountBalanceHelper(data.bank_account_id, expenseAccountNewBalance, client); // Atualiza o saldo da conta de saída.
@@ -249,7 +250,7 @@ export default class TransactionServices {
     } = data; // Separa os valores bases passados dos valores a se atualizar
 
     if (!user_id || !wallet_id || !transaction_id) {
-      throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
+      throw new AppError('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição', 400);
     }
 
     await userValidateHelper(user_id, wallet_id); // Valida se o usuário existe ou tem permissão para realizar a operação
@@ -267,21 +268,21 @@ export default class TransactionServices {
 
       // Valida se o transaction_id é valido
       if (validateTransaction.rows.length === 0) {
-        throw new Error('ID da transação informado é inválido ou inexistente');
+        throw new AppError('ID da transação informado é inválido ou inexistente', 404);
       }
 
       const currentTransaction = validateTransaction.rows[0];
 
       // Validação se foi passado algum campo para atualizar
       if (Object.keys(updateFields).length === 0) {
-        throw new Error('Nenhum campo informado para atualização');
+        throw new AppError('Nenhum campo informado para atualização', 400);
       }
 
       await validateTransactionsFksHelper(data, true); // Validação das Fks para update
 
       // Validar se foi passado um value válido maior que 0
       if ('value' in updateFields && (updateFields.value <= 0 || typeof updateFields.value !== 'number')) {
-        throw new Error('Valor informado inválido, aceita apenas valores positivos acima de 0');
+        throw new AppError('Valor informado inválido, aceita apenas valores positivos acima de 0', 400);
       }
 
       // Validar payment_date se foi enviada se sim validar se é valido
@@ -291,7 +292,7 @@ export default class TransactionServices {
         const paymentDateFormatted = new Date(updateFields.payment_date);
 
         if (paymentDateFormatted > today) {
-          throw new Error('Não é possível definir a data do pagamento para uma data maior que a atual');
+          throw new AppError('Não é possível definir a data do pagamento para uma data maior que a atual', 400);
         }
       }
 
@@ -319,7 +320,7 @@ export default class TransactionServices {
       }
 
       if (currentTransaction.status === 'cancelled' && (!fieldsToUpdate.status || fieldsToUpdate.status === 'cancelled') && 'due_date' in fieldsToUpdate) {
-        throw new Error('Transação cancelada, nenhuma alteração será aplicada a não ser que altera o status da transação');
+        throw new AppError('Transação cancelada, nenhuma alteração será aplicada a não ser que altera o status da transação', 400);
       }
 
       // Resolução de Estado Final E Validações de Négocio
@@ -391,7 +392,7 @@ export default class TransactionServices {
         const validateCurrentPayMethod = await payMethodValuesHelper(currentTransaction.pay_methods_id);
 
         if (validateCurrentPayMethod.rows[0].credit_card === true && validatePayMethod.rows[0].credit_card === false) {
-          throw new Error('Não é permitido alterar a forma de pagamento de compra parcelada em cartão de crédito para uma forma que não seja cartão de crédito');
+          throw new AppError('Não é permitido alterar a forma de pagamento de compra parcelada em cartão de crédito para uma forma que não seja cartão de crédito', 400);
         }
 
         // Mudança de transação que não é cartão de crédito para cartão de crédito, valida se é permitido alterar o tipo de transação para uma que seja cartão de crédito
@@ -494,14 +495,14 @@ export default class TransactionServices {
 
     // Validação campos obrigatórios
     if (!user_id || !wallet_id || !transaction_id) {
-      throw new Error('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição');
+      throw new AppError('Um ou mais dos campos (user_id, wallet_id e transaction_id) não foram informados na requisição', 404);
     }
 
     // Validação se é um UUID válido e se localiza a transação no banco de dados
     const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
     if (!uuidV4Regex.test(transaction_id)) {
-      throw new Error('ID da transação inexistente ou inválido');
+      throw new AppError('ID da transação inexistente ou inválido', 404);
     };
 
     const searchTransaction = await pool.query(
@@ -510,7 +511,7 @@ export default class TransactionServices {
     );
 
     if (searchTransaction.rows.length === 0) {
-      throw new Error('ID da transação inexistente ou inválido');
+      throw new AppError('ID da transação inexistente ou inválido', 404);
     };
 
     const transactionValues = searchTransaction.rows[0];
@@ -519,7 +520,7 @@ export default class TransactionServices {
 
     // Validação se a transação informada pertence a mesma carteira passada
     if (wallet_id !== transactionValues.wallet_id) {
-      throw new Error('Transação informada pertencente a outra carteira. Impossível prosseguir com a operação');
+      throw new AppError('Transação informada pertencente a outra carteira. Impossível prosseguir com a operação', 403);
     }
 
     // Função de reverter e validar saldo
@@ -528,7 +529,7 @@ export default class TransactionServices {
       const newBalance = revertingBalance(Number(accountBalance), Number(value), type);
 
       if (newBalance < 0 && accountAllowNegative === false) {
-        throw new Error('Impossível realizar exclusão. Saldo atual da conta bancária é insuficiente ou não permite ser negativo');
+        throw new AppError('Impossível realizar exclusão. Saldo atual da conta bancária é insuficiente ou não permite ser negativo', 422);
       }
 
       await updateBankAccountBalanceHelper(bankAccountId, newBalance, client);
@@ -676,7 +677,7 @@ export default class TransactionServices {
 
     // Validação campos obrigatórios
     if (!user_id || !wallet_id) {
-      throw new Error('Um ou mais dos campos (user_id e wallet_id) não foram informados na requisição');
+      throw new AppError('Um ou mais dos campos (user_id e wallet_id) não foram informados na requisição', 404);
     }
 
     // Validação de associação de usuário com a carteira
@@ -707,7 +708,7 @@ export default class TransactionServices {
       if (filterFields[field] !== undefined) {
         if (!uuidV4Regex.test(filterFields[field])) {
           const fieldName = field === 'id' ? 'ID' : field;
-          throw new Error(`${fieldName} da transação incorreto ou inexistente`);
+          throw new AppError(`${fieldName} da transação incorreto ou inexistente`, 404);
         }
       }
     }
@@ -716,7 +717,7 @@ export default class TransactionServices {
     if (filterFields.invoice_id !== undefined) {
       const invoiceIdRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_\d{4}\/(0[1-9]|1[0-2])$/i;
       if (!invoiceIdRegex.test(filterFields.invoice_id)) {
-        throw new Error('invoice_id da transação incorreto ou inexistente');
+        throw new AppError('invoice_id da transação incorreto ou inexistente', 404);
       }
     }
 
@@ -727,7 +728,7 @@ export default class TransactionServices {
       if (filterFields[field] !== undefined) {
         for (const id of filterFields[field]) {
           if (!uuidV4Regex.test(id)) {
-            throw new Error(`${field} da transação incorreto ou inexistente`);
+            throw new AppError(`${field} da transação incorreto ou inexistente`, 404);
           }
         }
       }
@@ -739,7 +740,7 @@ export default class TransactionServices {
     if (filterFields.type !== undefined) {
       for (const item of filterFields.type) {
         if (!typeWhitelist.includes(item)) {
-          throw new Error('Tipo de transação inválido');
+          throw new AppError('Tipo de transação inválido', 400);
         }
       }
     }
@@ -749,7 +750,7 @@ export default class TransactionServices {
     if (filterFields.status !== undefined) {
       for (const item of filterFields.status) {
         if (!statusWhitelist.includes(item)) {
-          throw new Error('Status de transação inválido');
+          throw new AppError('Status de transação inválido', 400);
         }
       }
     }
@@ -766,7 +767,7 @@ export default class TransactionServices {
         const isPositive = filterFields[field] > 0;
 
         if (!isNumber || !isPositive) {
-          throw new Error('O valor da transação deve ser um número válido');
+          throw new AppError('O valor da transação deve ser um número válido', 400);
         }
 
         // Validação value_min não pode ser maior que o value_max
@@ -786,7 +787,7 @@ export default class TransactionServices {
 
     if (valueMin > 0 && (valueMax !== 0 || filterFields.value_max !== undefined)) {
       if (valueMin > valueMax) {
-        throw new Error('O valor mínimo não pode ser maior que o valor máximo');
+        throw new AppError('O valor mínimo não pode ser maior que o valor máximo', 400);
       }
     }
 
@@ -795,14 +796,14 @@ export default class TransactionServices {
       const isNumber = typeof filterFields.current_installment === 'number' && !isNaN(filterFields.current_installment);
       const isPositive = filterFields.current_installment > 0;
       if (!isNumber || !isPositive) {
-        throw new Error('current_installment deve ser um número válido');
+        throw new AppError('current_installment deve ser um número válido');
       }
     }
 
     // Validação de descrição
     if (filterFields.description !== undefined) {
       if (filterFields.description.trim().length === 0) {
-        throw new Error('A descrição da transação não pode ser uma string vazia');
+        throw new AppError('A descrição da transação não pode ser uma string vazia');
       }
     }
 
@@ -822,14 +823,14 @@ export default class TransactionServices {
 
       // validação do formato
       if (!isoRegex.test(value)) {
-        throw new Error('Formato de data inválido. Use o formato YYYY-MM-DD');
+        throw new AppError('Formato de data inválido. Use o formato YYYY-MM-DD');
       }
 
       // validação de coêrencia do calendário
       const parsedDate = parse(value, 'yyyy-MM-dd', new Date());
 
       if (!isValid(parsedDate)) {
-        throw new Error('Data informada é inválida.');
+        throw new AppError('Data informada é inválida.');
       }
     }
 
@@ -850,7 +851,7 @@ export default class TransactionServices {
         const toDate = parse(toVal, 'yyyy-MM-dd', new Date());
 
         if (isAfter(fromDate, toDate)) {
-          throw new Error('A data mínima não pode ser maior que a data máxima.');
+          throw new AppError('A data mínima não pode ser maior que a data máxima.');
         }
       }
     }
@@ -861,7 +862,7 @@ export default class TransactionServices {
 
     if (order_by !== undefined ) {
       if (!hasPermittedFields) {
-        throw new Error('Parâmetro de ordenação inválido');
+        throw new AppError('Parâmetro de ordenação inválido');
       }
     }
 
@@ -876,7 +877,7 @@ export default class TransactionServices {
 
         if (itemSearch.rows.length === 0) {
           const fieldName = field === 'id' ? 'ID' : field;
-          throw new Error(`${fieldName} da transação incorreto ou inexistente`);
+          throw new AppError(`${fieldName} da transação incorreto ou inexistente`, 404);
         }
       }
     }
@@ -894,7 +895,7 @@ export default class TransactionServices {
         try {
           await validateResoureceOwnershipHelper(field.table, filterFields[field.fieldId], wallet_id, field.fieldId);
         } catch {
-          throw new Error(`${field.fieldId} da transação incorreto ou inexistente`);
+          throw new AppError(`${field.fieldId} da transação incorreto ou inexistente`, 404);
         }
       }
     }
@@ -909,7 +910,7 @@ export default class TransactionServices {
       );
 
       if (creatorUserValidate.rows.length === 0) {
-        throw new Error('creator_user_id da transação incorreto ou inexistente');
+        throw new AppError('creator_user_id da transação incorreto ou inexistente', 404);
       }
     }
 
