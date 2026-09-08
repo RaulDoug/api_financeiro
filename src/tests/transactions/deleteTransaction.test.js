@@ -803,6 +803,7 @@ describe('TransactionService - delete()', () => {
           user_id: testData.userId,
           wallet_id: testData.walletId,
           transaction_id: creditCardData.secondInstallmentId,
+          redistribute: true,
         };
 
         const result = await transactionService.delete(payload);
@@ -1057,6 +1058,167 @@ describe('TransactionService - delete()', () => {
           [creditCardData.installmenteGroupId],
         );
         expect(remainderTransactions.rows.length).toBe(0);
+      });
+
+      test('SUCESSO - Deve lidar corretamente ao deletar uma parcela de um grupo credit card com todas completed, não deve alterar o valor da parcela restante', async () => {
+        // Criando transação credit card com 2 parcelas
+        const createPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 20.00,
+          installments_number: 2,
+          purchase_date: '2026-07-05',
+          description: 'transação cartão com 2 parcelas',
+        };
+
+        const createResult = await transactionService.create(createPayload);
+
+        // Marcas ambas como completed
+        const parcela1Id = createResult.rows[0].id;
+        const parcela2Id = createResult.rows[1].id;
+        await pool.query('UPDATE transactions SET status = $1 WHERE id = $2', ['completed', parcela1Id]);
+        await pool.query('UPDATE transactions SET status = $1 WHERE id = $2', ['completed', parcela2Id]);
+
+        // Deletar segunda parcela (Não deve retornar um erro e não deve salvar Infinity no banco)
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: parcela2Id,
+        };
+
+        await expect(
+          transactionService.delete(payload),
+        ).resolves.not.toThrow();
+
+        const remaining = await pool.query('SELECT value FROM transactions WHERE id = $1', [parcela1Id]);
+        expect(remaining.rows[0].value).toBe(10.00);
+      });
+
+      test('SUCESSO - Deve lidar corretamente ao deletar uma parcela de um grupo credit card e distribuir o valor total das parcelas na única restante quando a opção redistribute for passada como true', async () => {
+        // Criando transação credit card com 2 parcelas
+        const createPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 20.00,
+          installments_number: 2,
+          purchase_date: '2026-07-05',
+          description: 'transação cartão com 2 parcelas',
+        };
+
+        const createResult = await transactionService.create(createPayload);
+
+        // Marcas ambas como completed
+        const parcela1Id = createResult.rows[0].id;
+        const parcela2Id = createResult.rows[1].id;
+
+        // Deletar segunda parcela (Não deve retornar um erro e não deve salvar Infinity no banco)
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: parcela2Id,
+          redistribute: true,
+        };
+
+        await expect(
+          transactionService.delete(payload),
+        ).resolves.not.toThrow();
+
+        const remaining = await pool.query('SELECT value FROM transactions WHERE id = $1', [parcela1Id]);
+        expect(remaining.rows[0].value).toBe(20.00);
+      });
+
+      test('SUCESSO - Não deve alterar o valor das parcelas restantes quando redistribute não for informado', async () => {
+        const createPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 20.00,
+          installments_number: 2,
+          purchase_date: '2026-07-05',
+          description: 'cartao 2x sem redistribute',
+        };
+        const created = await transactionService.create(createPayload);
+        const [p1, p2] = created.rows;
+        await transactionService.delete({
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: p2.id,
+        });
+        const remaining = await pool.query('SELECT value FROM transactions WHERE id = $1', [p1.id]);
+        expect(remaining.rows[0].value).toBe(10.00);
+      });
+
+      test('SUCESSO - Deve excluir a última parcela restante do grupo sem divisão por zero', async () => {
+        const createPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 20.00,
+          installments_number: 2,
+          purchase_date: '2026-07-05',
+          description: 'cartao deletar todas',
+        };
+        const created = await transactionService.create(createPayload);
+        const [p1, p2] = created.rows;
+        // Deleta a primeira parcela
+        await transactionService.delete({ user_id: testData.userId, wallet_id: testData.walletId, transaction_id: p1.id });
+        // Deleta a última restante (remainderTransactions.rows.length === 0)
+        await expect(
+          transactionService.delete({ user_id: testData.userId, wallet_id: testData.walletId, transaction_id: p2.id, redistribute: true }),
+        ).resolves.not.toThrow();
+        const check = await pool.query('SELECT * FROM transactions WHERE installments_group_id = $1', [p1.installments_group_id]);
+        expect(check.rows.length).toBe(0);
+      });
+
+      test('SUCESSO - Deve manter o current_installment como 1 quando restasr apenas 1 parcela após o delete', async () => {
+        const createPayload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          status: 'pending',
+          value: 20.00,
+          installments_number: 2,
+          purchase_date: '2026-07-05',
+          description: 'cartao 2x sem redistribute',
+        };
+        const created = await transactionService.create(createPayload);
+        const [p1, p2] = created.rows;
+
+
+        await transactionService.delete({ transaction_id: p1.id, user_id: testData.userId, wallet_id: testData.walletId });
+
+        const remaining = await pool.query(
+          'SELECT current_installment FROM transactions WHERE id = $1',
+          [p2.id],
+        );
+
+        expect(remaining.rows[0].current_installment).toBe(1);
       });
     });
   });

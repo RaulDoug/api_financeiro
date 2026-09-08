@@ -490,7 +490,7 @@ export default class TransactionServices {
   };
 
   async delete(data) {
-    const { user_id, wallet_id, transaction_id, all_installments } = data; // Valores passados no data
+    const { user_id, wallet_id, transaction_id, all_installments, redistribute } = data; // Valores passados no data
 
     // Validação campos obrigatórios
     if (!user_id || !wallet_id || !transaction_id) {
@@ -614,14 +614,17 @@ export default class TransactionServices {
           // Validando se é cartão de crédito
           const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
           if (payMethodValues.rows[0].credit_card === true) {
-            const newInstallmentValue = fullValue / remainderTransactions.rows.length;
 
-            for (const transaction of remainderTransactions.rows) {
-              if (transaction.status !== 'completed') {
-                await client.query(
-                  'UPDATE transactions SET value = $1 WHERE id = $2',
-                  [newInstallmentValue, transaction.id],
-                );
+            if (remainderTransactions.rows.length > 0 && redistribute === true) {
+              const newInstallmentValue = Number((fullValue / remainderTransactions.rows.length).toFixed(2));
+              
+              for (const transaction of remainderTransactions.rows) {
+                if (transaction.status !== 'completed') {
+                  await client.query(
+                    'UPDATE transactions SET value = $1 WHERE id = $2',
+                    [newInstallmentValue, transaction.id],
+                  );
+                }
               }
             }
           }

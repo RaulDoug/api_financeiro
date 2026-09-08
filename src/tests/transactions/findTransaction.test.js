@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 
 const createTransaction = async (service, testData, name, overrides = {}) => {
   const type = overrides.type || 'NO TYPE';
-  const status = overrides.status || 'NO STATUS'; 
+  const status = overrides.status || 'NO STATUS';
   const description = overrides.description || `Transação de tipo: ${type} e status: ${status} - ${name}`;
 
   return service.create({
@@ -186,6 +186,15 @@ describe('TransactionsServices - find()', () => {
 
   afterEach(async () => {
     vi.useRealTimers();
+  });
+
+  test('SUCESSO - Quando não passar nenhum parâmetro para filtro deve retornar todas as transações da carteira', async () => {
+    const result = await transactionService.find({
+      user_id: testData.userId,
+      wallet_id: testData.walletId,
+    });
+
+    expect(result.rows.length).toBe(11);
   });
 
   describe('Filtro de ID único', () => {
@@ -962,11 +971,21 @@ describe('TransactionsServices - find()', () => {
         await expect(transactionService.find(payload)).rejects.toThrow('O valor da transação deve ser um número válido');
       });
 
-      test('FALHA - Deve retornar um erro quando o valor é 0 ou negativo', async () => {
+      test('FALHA - Deve retornar um erro quando o valor é negativo', async () => {
         const payload = {
           user_id: testData.userId,
           wallet_id: testData.walletId,
           value: -10,
+        };
+
+        await expect(transactionService.find(payload)).rejects.toThrow('O valor da transação deve ser um número válido');
+      });
+
+      test('FALHA - Deve retornar um erro quando o valor é 0', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          value: 0,
         };
 
         await expect(transactionService.find(payload)).rejects.toThrow('O valor da transação deve ser um número válido');
@@ -1589,6 +1608,17 @@ describe('TransactionsServices - find()', () => {
         await expect(transactionService.find({ ...basePayload, order_by: 'campo_inexistente' }))
           .rejects
           .toThrow('Parâmetro de ordenação inválido');
+      });
+
+      test('FALHA - Deve usar ASC como fallback ao receber order_dir como valor inválido', async () => {
+        const result = await transactionService.find({
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          order_dir: 'INVALIDO', // não é DESC nem ASC
+        });
+
+        // Deve retornar sem erro (fallback silencioso para ASC)
+        expect(Array.isArray(result.rows)).toBe(true);
       });
     });
   });

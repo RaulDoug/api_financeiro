@@ -6,6 +6,7 @@ import { createAuthenticatedUser, createWallet } from '../testUtils.js';
 import TransactionServices from '../../services/transactions/transactionServices.js';
 import { createSchema } from '../../schemas/transactionSchema.js';
 import { setupTransactionData } from './transactionTestUtils.js';
+import { format } from 'date-fns';
 
 describe('TransactionServices - create()', () => {
   // Configurações de variáveis e beforeEach create()
@@ -354,6 +355,34 @@ describe('TransactionServices - create()', () => {
       expect(result.rows[2].value).toBe(30.00);
       expect(result.rows[2].due_date.toISOString().slice(0, 10)).toBe('2026-10-09');
       expect(result.rows[2].invoice_id).toBe(`${result.rows[0].pay_methods_id}_2026/10`);
+    });
+
+    test('SUCESSO - Ao lançar uma transação como credit card não deve alterar o saldo atual da conta bancaria', async () => {
+      const beforeAccountBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+
+      await transactionService.create({
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 150.00,
+        description: 'Compra no cartão de crédito',
+        purchase_date: '2026-07-15',
+        installments_number: 3,
+      });
+
+      const afterAccountBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+
+      expect(afterAccountBalance.rows[0].balance).toBe(beforeAccountBalance.rows[0].balance);
     });
 
     test('Deve lançar uma transação recorrente com sucesso quando é passado que a primeira transação é para o mês atual como completed caso o dia do vencimento for igual ou menor que o dia atual. Deve atualizar o saldo da conta bancária para a primeira parcela', async () => {
@@ -980,6 +1009,76 @@ describe('TransactionServices - create()', () => {
         .rejects
         .toThrow('Conta bancária com saldo insuficente para realizar a transação');
     });
+
+    test('Deve aumenta o saldo da conta de destino em transferência completed', async () => {
+      const balanceBefore = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountIdB],
+      );
+
+      await transactionService.create({
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        destiny_bank_account_id: testData.bankAccountIdB,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'transfers',
+        status: 'completed',
+        value: 100.00,
+        description: 'Transferencia entre contas',
+        due_date: '2026-08-10',
+      });
+
+      const balanceAfter = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountIdB],
+      );
+
+      const diff = parseFloat(balanceAfter.rows[0].balance) - parseFloat(balanceBefore.rows[0].balance);
+      expect(diff).toBe(100);
+    });
+
+    test('Deve manter o saldo da conta de destino inalterado em transferência pending', async () => {
+      const balanceOriginBefore = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      
+      const balanceDestinyBefore = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountIdB],
+      );
+
+      await transactionService.create({
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        destiny_bank_account_id: testData.bankAccountIdB,
+        category_id: testData.categorieIncomeId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'transfers',
+        status: 'pending',
+        value: 100.00,
+        description: 'Transferencia entre contas',
+        due_date: '2026-08-10',
+      });
+
+      const balanceOriginAfter = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+
+      const balanceDestinyAfter = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountIdB],
+      );
+
+      expect(balanceOriginAfter.rows[0].balance).toBe(balanceOriginBefore.rows[0].balance);
+      expect(balanceDestinyAfter.rows[0].balance).toBe(balanceDestinyBefore.rows[0].balance);
+    });
   });
 
   describe('Regras de validação de campos', () => {
@@ -1351,6 +1450,47 @@ describe('TransactionServices - create()', () => {
       await expect(transactionService.create(payload))
         .rejects
         .toThrow('Nenhuma conta selecionada para receber a transferência');
+    });
+
+    test('FALHA - Deve lançar erro ao criar expense CC com installments_number = 0', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        description: 'Transação com installment_number = 0',
+        type: 'expenses',
+        installments_number: 0,
+        purchase_date: '2026-07-05',
+      };
+
+      await expect(transactionService.create(payload)).rejects.toThrow('O número de parcelas não pode ser menor que 1');
+    });
+
+    test('Deve lidar com due_day com dia 31 em mês com 28 ou 30 dias sem gerar data inválida, aplicando uma data válida para a transação', async () => {
+      // Criar recorrente cujo due_day = 31 e o ciclo passa por fevereiro
+      const result = await transactionService.create({
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodId,
+        counterparty_id: testData.counterpartyPayerId,
+        description: 'Descrição transação com due_day inválido',
+        value: 50.00,
+        type: 'expenses',
+        is_recurrent: true,
+        due_day: 31, // A data aplicada vai considerar os dias e neste caso vai aplicar o dia que seria "correspondente" ao dia 31 no caso 03/03/2026
+        installments_number: 2,
+        purchase_date: '2026-01-15', // janeiro → fevereiro será o próximo mês
+      });
+
+      console.log(result);
+
+      // Verificar que due_date gerado na transação é uma data válida
+      expect(format(result.rows[0].due_date, 'yyyy-MM-dd')).toBe('2026-03-03');
     });
   });
 });

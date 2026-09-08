@@ -5,6 +5,7 @@ import pool from '../../config/db.js';
 import TransactionServices from '../../services/transactions/transactionServices.js';
 import { setupTransactionData } from './transactionTestUtils.js';
 import { createAuthenticatedUser, createWallet } from '../testUtils.js';
+import { format } from 'date-fns';
 
 describe('TransactionServices - update()', () => {
   // Configurações de variáveis e beforeEach create()
@@ -394,6 +395,124 @@ describe('TransactionServices - update()', () => {
       await expect(transactionService.update(payload))
         .rejects
         .toThrow('Transação cancelada, nenhuma alteração será aplicada a não ser que altera o status da transação');
+    });
+
+    test('SUCESSO - Alterar o due_date para uma data no passado em uma transação cancelled passando o status expired para ela', async () => {
+      // Criando transação cancelled
+      const cancelledPayload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: testData.baseTransactionId,
+        status: 'cancelled',
+      };
+
+      const cancelledResult = await transactionService.update(cancelledPayload);
+      expect(cancelledResult.status).toBe('cancelled');
+
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: cancelledResult.id,
+        due_date: '2026-07-01',
+        status: 'expired',
+      };
+
+      const result = await transactionService.update(payload);
+
+      expect(result.id).toBe(cancelledResult.id);
+      expect(format(result.due_date, 'yyyy-MM-dd')).toBe('2026-07-01');
+      expect(result.status).toBe('expired');
+    });
+
+    test('SUCESSO - Alterar o due_date para uma data no futuro em uma transação cancelled passando o status pending para ela', async () => {
+      // Criando transação cancelled
+      const cancelledPayload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: testData.baseTransactionId,
+        status: 'cancelled',
+      };
+
+      const cancelledResult = await transactionService.update(cancelledPayload);
+      expect(cancelledResult.status).toBe('cancelled');
+
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: cancelledResult.id,
+        due_date: '2026-08-01',
+        status: 'pending',
+      };
+
+      const result = await transactionService.update(payload);
+
+      expect(result.id).toBe(cancelledResult.id);
+      expect(format(result.due_date, 'yyyy-MM-dd')).toBe('2026-08-01');
+      expect(result.status).toBe('pending');
+    });
+
+    test('FALHA - Alterar o due_date para uma data no futuro em uma transação cancelled passando o status expired retorna erro', async () => {
+      // Criando transação cancelled
+      const cancelledPayload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: testData.baseTransactionId,
+        status: 'cancelled',
+      };
+
+      const cancelledResult = await transactionService.update(cancelledPayload);
+      expect(cancelledResult.status).toBe('cancelled');
+
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: cancelledResult.id,
+        due_date: '2026-08-01',
+        status: 'expired',
+      };
+
+      await expect(transactionService.update(payload)).rejects.toThrow('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
+
+      
+    });
+
+    test('SUCESSO - Alterar o due_date para uma data no futuro em uma transação cancelled passando o status completed para ela o status deve ficar completed e o saldo da conta deve ser alterado', async () => {
+      // Criando transação cancelled
+      const cancelledPayload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: testData.baseTransactionId,
+        status: 'cancelled',
+      };
+
+      const cancelledResult = await transactionService.update(cancelledPayload);
+      expect(cancelledResult.status).toBe('cancelled');
+
+      const accountBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(accountBalance.rows[0].balance).toBe(400);
+
+      const payload = {
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: cancelledResult.id,
+        due_date: '2026-08-01',
+        status: 'completed',
+      };
+
+      const result = await transactionService.update(payload);
+
+      expect(result.id).toBe(cancelledResult.id);
+      expect(format(result.due_date, 'yyyy-MM-dd')).toBe('2026-08-01');
+      expect(result.status).toBe('completed');
+
+      const newAccountBalance = await pool.query(
+        'SELECT balance FROM bank_accounts WHERE id = $1',
+        [testData.bankAccountId],
+      );
+      expect(newAccountBalance.rows[0].balance).toBe(500);
     });
   });
 
@@ -1344,7 +1463,7 @@ describe('TransactionServices - update()', () => {
       expect(destinyAccountBalance.rows[0].balance).toBe(200.00);
     });
 
-    test('SUCESSO - transfers -> incomings: Estorna ambos os saldos exclui transação vinculada de destino e aplica saída na conta de origem', async () => {
+    test('SUCESSO - transfer_out -> incomings: Estorna ambos os saldos exclui transação vinculada de destino e aplica saída na conta de origem', async () => {
       // Criando transação e validando saldo antes do update
       const { transferExpenseId, transferIncomeId } = await transfersTransactions();
 
@@ -1380,7 +1499,7 @@ describe('TransactionServices - update()', () => {
       expect(dbCheck.rows.length).toBe(0);
     });
 
-    test('SUCESSO - transfers -> expenses: Estorna ambos os saldos, exclui a transação vinculada de destino, aplica saída na conta de origem', async () => {
+    test('SUCESSO - transfer_out -> expenses: Estorna ambos os saldos, exclui a transação vinculada de destino, aplica saída na conta de origem', async () => {
       // Criando transação e validando saldo antes do update
       const { transferExpenseId, transferIncomeId } = await transfersTransactions();
 
