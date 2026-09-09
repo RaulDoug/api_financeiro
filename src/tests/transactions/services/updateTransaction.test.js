@@ -1,10 +1,10 @@
 import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import request from 'supertest';
-import app from '../../app.js';
-import pool from '../../config/db.js';
-import TransactionServices from '../../services/transactions/transactionServices.js';
-import { setupTransactionData } from './transactionTestUtils.js';
-import { createAuthenticatedUser, createWallet } from '../testUtils.js';
+import app from '../../../app.js';
+import pool from '../../../config/db.js';
+import TransactionServices from '../../../services/transactions/transactionServices.js';
+import { setupTransactionData } from '../transactionTestUtils.js';
+import { createAuthenticatedUser, createWallet } from '../../testUtils.js';
 import { format } from 'date-fns';
 
 describe('TransactionServices - update()', () => {

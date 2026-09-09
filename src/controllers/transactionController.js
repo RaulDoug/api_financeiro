@@ -89,7 +89,7 @@ export default class TransactionController {
       } else {
         return res.status(200).json({
           message: 'Transação alterada com sucesso!',
-          itens: updateItem,
+          item: updateItem,
         });
       }
     } catch (error) {
@@ -135,7 +135,7 @@ export default class TransactionController {
           expense: deleteItem.expense,
           incoming: deleteItem.incoming,
         });
-      } else if (deleteItem.itens.length > 1) {
+      } else if (deleteItem.itens && deleteItem.itens.length > 1) {
         return res.status(200).json({
           message: 'Transações excluídas com sucesso!',
           itens: deleteItem.itens,
@@ -143,7 +143,7 @@ export default class TransactionController {
       } else {
         return res.status(200).json({
           message: 'Transação excluída com sucesso!',
-          itens: deleteItem.item,
+          item: deleteItem.item,
         });
       }
     } catch (error) {

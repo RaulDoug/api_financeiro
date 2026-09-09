@@ -857,11 +857,29 @@ export default class TransactionServices {
     }
 
     // Validação de ordenação
-    const sortingWhitelist = ['due_date', 'value', 'creted_at', 'purchase_date', 'payment_date', 'description', 'status', 'type'];
-    const hasPermittedFields = sortingWhitelist.includes(order_by);
+    const sortFieldsMap = {
+      id: 't.id',
+      value: 't.value',
+      description: 't.description',
+      type: 't.type',
+      status: 't.status',
+      due_date: 't.due_date',
+      payment_date: 't.payment_date',
+      purchase_date: 't.purchase_date',
+      transfers_id: 't.transfers_id',
+      invoice_id: 't.invoice_id',
+      current_installment: 't.current_installment',
+      created_at: 't.created_at',
+      bank_account_name: 'b.bank_name',
+      category_name: 'c.name',
+      pay_method_name: 'p.name',
+      counterparty_name: 'cp.name',
+      creator_user_name: 'u.name',
+    };
 
     if (order_by !== undefined ) {
-      if (!hasPermittedFields) {
+      const targetColumn = sortFieldsMap[order_by];
+      if (!targetColumn) {
         throw new AppError('Parâmetro de ordenação inválido');
       }
     }
@@ -981,10 +999,12 @@ export default class TransactionServices {
       }
     }
 
-    let orderByClauses = ['ORDER BY due_date ASC'];
+    let orderByClauses = ['ORDER BY t.due_date ASC'];
 
     if (order_by !== undefined) {
-      orderByClauses = [`ORDER BY ${order_by} ${order_dir === 'DESC' ? 'DESC' : 'ASC'}`];
+      const targetColumn = sortFieldsMap[order_by];
+      const direction = order_dir === 'DESC' ? 'DESC' : 'ASC';
+      orderByClauses = [`ORDER BY ${targetColumn} ${direction}`];
     }
 
 

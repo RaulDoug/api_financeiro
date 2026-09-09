@@ -1,8 +1,8 @@
 import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
-import pool from '../../config/db.js';
-import TransactionServices from '../../services/transactions/transactionServices.js';
-import { setupTransactionData } from './transactionTestUtils.js';
-import { createAuthenticatedUser, createWallet } from '../testUtils.js';
+import pool from '../../../config/db.js';
+import TransactionServices from '../../../services/transactions/transactionServices.js';
+import { setupTransactionData } from '../transactionTestUtils.js';
+import { createAuthenticatedUser, createWallet } from '../../testUtils.js';
 
 describe('TransactionService - delete()', () => {
   let testData;

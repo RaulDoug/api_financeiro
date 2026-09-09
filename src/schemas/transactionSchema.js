@@ -70,7 +70,7 @@ export const deleteSchema = z.object({
   }),
   body: z.object({
     all_installments: allInstallmentsValidation,
-    redistribute: z.boolean().optional(),
+    redistribute: z.boolean('Valor informado inválido precisa ser true ou false').optional(),
   }),
 });
 
@@ -105,7 +105,7 @@ export const findSchema = z.object({
         'counterparty_name',
         'creator_user_name',
       ], 
-      { message: 'Tipo inválido. Deve ser algum dos nomes de colunas'}),
-    order_dir: z.enum(['ASC', 'DESC'], { message: "Tipo inválido. Deve ser 'ASC' ou 'DESC'" }),
+      { message: 'Tipo inválido. Deve ser algum dos nomes de colunas'}).optional(),
+    order_dir: z.enum(['ASC', 'DESC'], { message: "Tipo inválido. Deve ser 'ASC' ou 'DESC'" }).optional(),
   }),
 });

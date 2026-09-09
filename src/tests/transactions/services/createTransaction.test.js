@@ -1,11 +1,11 @@
 import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import request from 'supertest';
-import app from '../../app.js';
-import pool from '../../config/db.js';
-import { createAuthenticatedUser, createWallet } from '../testUtils.js';
-import TransactionServices from '../../services/transactions/transactionServices.js';
-import { createSchema } from '../../schemas/transactionSchema.js';
-import { setupTransactionData } from './transactionTestUtils.js';
+import app from '../../../app.js';
+import pool from '../../../config/db.js';
+import { createAuthenticatedUser, createWallet } from '../../testUtils.js';
+import TransactionServices from '../../../services/transactions/transactionServices.js';
+import { createSchema } from '../../../schemas/transactionSchema';
+import { setupTransactionData } from '../transactionTestUtils.js';
 import { format } from 'date-fns';
 
 describe('TransactionServices - create()', () => {
@@ -555,7 +555,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('A descrição deve conter no mínimo 3 caracteres');
     });
 
@@ -574,7 +574,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('O valor deve ser maior que zero');
     });
 
@@ -593,7 +593,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow("Tipo inválido. Deve ser 'incomings', 'expenses' ou 'transfers'");
     });
 
@@ -612,7 +612,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow("Status inválido. Deve ser 'pending', 'completed', 'canceled' ou 'expired'");
     });
 
@@ -630,7 +630,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('ID da conta bancária é obrigatório');
     });
 
@@ -649,7 +649,7 @@ describe('TransactionServices - create()', () => {
         due_date: '2026-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('ID da conta bancária inválido');
     });
 
@@ -669,7 +669,7 @@ describe('TransactionServices - create()', () => {
         payment_date: 'DATA INVÁLIDA',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('Data inválida');
     });
 
@@ -689,7 +689,7 @@ describe('TransactionServices - create()', () => {
         payment_date: '2100-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('A data de pagamento não pode ser uma data futura');
     });
 
@@ -709,7 +709,7 @@ describe('TransactionServices - create()', () => {
         purchase_date: '2100-08-10',
       };
 
-      expect(() => createSchema.parse(payload))
+      expect(() => createSchema.parse({ body: payload }))
         .toThrow('A data da compra não pode ser uma data futura');
     });
   });
