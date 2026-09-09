@@ -42,13 +42,13 @@ describe('GET /api/transaction/', () => {
         .get('/api/transaction/')
         .set('Authorization', authHeader)
         .set('x-wallet-id', walletId)
-        .send({[field]: value});
+        .query({[field]: value});
       
       expect(response.status).toBe(400);
       expect(response.body.status).toBe('fail');
       expect(response.body.errors).toEqual([
         {
-          field: `body.${field}`,
+          field: `query.${field}`,
           message: message,
         },
       ]);
@@ -67,7 +67,7 @@ describe('GET /api/transaction/', () => {
         .get('/api/transaction/')
         .set('Authorization', authHeader)
         .set('x-wallet-id', walletId)
-        .send({description: 'INVÁLIDA'});
+        .query({description: 'INVÁLIDA'});
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -86,7 +86,7 @@ describe('GET /api/transaction/', () => {
         .get('/api/transaction/')
         .set('Authorization', authHeader)
         .set('x-wallet-id', walletId)
-        .send({description: 'INVÁLIDA', value: 1.89});
+        .query({description: 'INVÁLIDA', value: 1.89});
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -104,7 +104,7 @@ describe('GET /api/transaction/', () => {
         .get('/api/transaction/')
         .set('Authorization', authHeader)
         .set('x-wallet-id', walletId)
-        .send({description: 'transação'});
+        .query({description: 'transação'});
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -134,7 +134,7 @@ describe('GET /api/transaction/', () => {
         .get('/api/transaction/')
         .set('Authorization', authHeader)
         .set('x-wallet-id', walletId)
-        .send({});
+        .query({});
 
       expect(response.status).toBe(status);
       expect(response.body).toEqual({

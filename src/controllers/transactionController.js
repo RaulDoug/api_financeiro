@@ -161,7 +161,7 @@ export default class TransactionController {
     try {
       const walletId = req.activeWalletId;
       const userId = req.user.id;
-      const data = req.body;
+      const data = req.query;
 
       if (!walletId || !userId) {
         return res.status(400).json({ message: 'ID da carteira ou usuário faltante na requisição' });
