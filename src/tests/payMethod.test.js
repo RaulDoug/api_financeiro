@@ -2,7 +2,6 @@ import { expect, test, describe } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import { createAuthenticatedUser, createWallet } from './testUtils.js';
-import { createSchema } from '../schemas/payMethodSchema.js';
 
 // Helper Functions
 const createTestPayMethod = async (authHeader, walletId) => {
@@ -74,6 +73,8 @@ describe('Pay Methods create', () => {
         bank_account_id: bankAccountId,
         due_day: 9,
         closing_day: 2,
+        last_four_digits: '0123',
+        credit_limit: 2000.00,
       });
 
     expect(response.body.item.credit_card).toBe(true);
@@ -98,7 +99,7 @@ describe('Pay Methods create', () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.errors[0].message).toBe('Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento e dia de fechamento');
+    expect(response.body.errors[0].message).toBe('Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão');
   });
 
 });

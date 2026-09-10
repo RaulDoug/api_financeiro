@@ -127,7 +127,7 @@ Autentica o usuário e retorna o JWT.
 ```
 
 > [!TIP]
-> O `token` expira em **1 dia**. Salve também o `id` do usuário — ele é necessário como `creator_user_id` ao criar transações.
+> O `token` expira em **1 dia**. O `creator_user_id` é injetado automaticamente pelo back-end via token — o front-end não precisa enviá-lo.
 
 **Erros:**
 | Status | Mensagem |

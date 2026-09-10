@@ -7,6 +7,8 @@ const nameValidation = z.string().min(2, 'O nome do banco deve ter no mínimo 2 
 const bankAccountValidation = z.string().uuid('ID da conta bancária é inválido').optional();
 const dueDayValidation = z.coerce.number({ invalid_type_error: 'O dia de vencimento deve ser um número inteiro' }).int('O dia de vencimento deve ser um número inteiro').optional();
 const closingDayValidation = z.coerce.number({ invalid_type_error: 'O dia de fechamento deve ser um número inteiro' }).int('O dia de fechamento deve ser um número inteiro').optional();
+const creditCardNumberValidation = z.string().regex(/^\d{4,}$/, 'Deve conter no mínimo 4 dígitos numéricos').optional();
+const creditCardLimitValidation = z.coerce.number({ invalid_type_error: 'Deve informar um limite válido e maior que 0'}).optional();
 const creditCardValidation = z.boolean('Este camo só aceita valores true ou false').optional();
 
 export const createSchema = z.object({
@@ -16,13 +18,15 @@ export const createSchema = z.object({
     bank_account_id: bankAccountValidation,
     due_day: dueDayValidation,
     closing_day: closingDayValidation,
+    last_four_digits: creditCardNumberValidation,
+    credit_limit: creditCardLimitValidation,
   }).refine((data) => {
     if (data.credit_card === true) {
-      return !!data.bank_account_id && !!data.due_day && !!data.closing_day;
+      return !!data.bank_account_id && !!data.due_day && !!data.closing_day && !!data.last_four_digits && !!data.credit_limit;
     }
     return true;
   }, {
-    message: 'Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento e dia de fechamento',
+    message: 'Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão',
   }),
 });
 

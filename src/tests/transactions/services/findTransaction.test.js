@@ -136,6 +136,8 @@ describe('TransactionsServices - find()', () => {
         credit_card: true,
         due_day: 9,
         closing_day: 2,
+        last_four_digits: '0123',
+        credit_limit: 2000.00,
       });
 
     const categorieExpenseOtherWallet = await request(app)

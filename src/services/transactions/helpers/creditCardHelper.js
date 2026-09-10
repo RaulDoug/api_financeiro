@@ -4,6 +4,7 @@ import {
   buildPayloadForCreate,
   createInsertQuery,
 } from './transactionsBuilders.js';
+import AppError from '../../../errors/AppError.js';
 
 const creditCardInstallmentsHelper = async (data, payMethodValues, payload, baseInvoiceDate, payMethodDueDay, invoiceIdToUse, client) => {
   // Lançamento de expense de credit_card parcelado
@@ -13,6 +14,8 @@ const creditCardInstallmentsHelper = async (data, payMethodValues, payload, base
   if (data.is_recurrent === false || !data.is_recurrent) {
     installmentValue = (data.value / data.installments_number).toFixed(2);
   }
+
+  await UpdateCreditLimitHelper(data, payMethodValues, client);
 
   const result = [];
 
@@ -61,6 +64,25 @@ const creditCardInstallmentsHelper = async (data, payMethodValues, payload, base
   await client.query('COMMIT');
 
   return { rows: result };
+};
+
+const UpdateCreditLimitHelper = async (data, payMethodValues, client) => {
+  const totalCreditLimit = Number(payMethodValues.rows[0].credit_limit);
+  const usedCreditLimit = Number(payMethodValues.rows[0].used_credit_limit);
+  const transactionValue = data.value;
+
+  const newUsedLimit = Number(Number(usedCreditLimit || 0) + Number(transactionValue)).toFixed(2);
+
+  if (newUsedLimit > totalCreditLimit) {
+    throw new AppError(`Cartão sem limite suficiente para realizar transação. Limite total: ${totalCreditLimit} | Limite usado: ${usedCreditLimit}`, 400);
+  }
+
+  await client.query(
+    'UPDATE pay_methods SET used_credit_limit = $1 WHERE id = $2',
+    [payMethodValues.rows[0].id, newUsedLimit],
+  );
+
+  return newUsedLimit;
 };
 
 export const creditCardHelper = async (data, payMethodValues, payload, client) => {
@@ -112,6 +134,8 @@ export const creditCardHelper = async (data, payMethodValues, payload, client) =
 
   const newDueDate = `${invoiceYear}-${invoiceMonth}-${payMethodDueDay}`;
   data.due_date = newDueDate;
+
+  await UpdateCreditLimitHelper(data, payMethodValues, client);
 
   const payloadCreditCard = buildPayloadForCreate(data, payMethodValues, data.bank_account_id, payload);
 
