@@ -23,7 +23,7 @@ import {
 } from './helpers/update/updateTransactionsHelper.js';
 import { updateTransferTransactionHelper } from './helpers/update/updateTransferTransactionHelper.js';
 import { revertTransferToRegularTransactionHelper } from './helpers/update/revertingTransferToRegularTransactionHelper.js';
-import { updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
+import { updateCreditCardLimitHelper, updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
 import { updateAllRecurrentTransactionHelper, updateRecurrentTransactionHelper } from './helpers/update/updateRecurrentTransactionHelper.js';
 import { parse, isValid, isAfter } from 'date-fns';
 import AppError from '../../errors/AppError.js';
@@ -575,6 +575,21 @@ export default class TransactionServices {
         );
 
         if (all_installments === true) {
+          const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
+          
+          if (payMethodValues.rows[0].credit_card === true) {
+            const totalToRevert = allTransactions.rows
+              .filter(t => t.status !== 'cancelled')
+              .reduce((acc, t) => acc + Number(t.value), 0);
+
+            await updateCreditCardLimitHelper({
+              payMethodId: transactionValues.pay_methods_id,
+              delta: -totalToRevert,
+              client,
+            });
+          }
+
+
           // Validando e revertendo saldo caso necessário
           for (const transaction of allTransactions.rows) {
             if (transaction.status === 'completed') {
@@ -592,6 +607,8 @@ export default class TransactionServices {
             itens: deleteTransactionByInstallmentsGropId.rows,
           };
         } else {
+          const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
+
           if (transactionValues.status === 'completed') {
             await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type, client);
           }
@@ -600,6 +617,14 @@ export default class TransactionServices {
           for (const transaction of allTransactions.rows) {
             fullValue += transaction.value;
           };
+
+          if (payMethodValues.rows[0].credit_card === true && !redistribute && transactionValues.status !== 'cancelled') {
+            await updateCreditCardLimitHelper({
+              payMethodId: transactionValues.pay_methods_id,
+              delta: -Number(transactionValues.value),
+              client,
+            });
+          }
 
           const deleteSelectedInstallment = await client.query(
             'DELETE FROM transactions WHERE id = $1 RETURNING *',
@@ -613,9 +638,7 @@ export default class TransactionServices {
           );
 
           // Validando se é cartão de crédito
-          const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
           if (payMethodValues.rows[0].credit_card === true) {
-
             if (remainderTransactions.rows.length > 0 && redistribute === true) {
               const newInstallmentValue = Number((fullValue / remainderTransactions.rows.length).toFixed(2));
               
@@ -646,6 +669,16 @@ export default class TransactionServices {
           };
         }
       } else { // Exclusão de transação simples
+        const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
+        
+        if (payMethodValues.rows[0].credit_card === true && transactionValues.status !== 'cancelled') {
+          await updateCreditCardLimitHelper({
+            payMethodId: transactionValues.pay_methods_id,
+            delta: -Number(transactionValues.value),
+            client,
+          });
+        }
+
         if (transactionValues.status === 'completed') {
           await revertingAndValidadeBalance(transactionValues.bank_account_id, transactionValues.value, transactionValues.type, client);
         }

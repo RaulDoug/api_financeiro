@@ -1223,6 +1223,210 @@ describe('TransactionService - delete()', () => {
     });
   });
 
+  describe('used_credit_limit - Exclusão de transações em cartão de crédito', () => {
+    test('SUCESSO - Excluir transação simples à vista libera o limite integral no cartão', async () => {
+      // 1. Cria transação simples de cartão de crédito (R$ 100,00)
+      const createPayload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        status: 'pending',
+        value: 100.00,
+        description: 'Compra simples cartão',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      };
+
+      const created = await transactionService.create(createPayload);
+
+      let cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+
+      // 2. Exclui a transação
+      await transactionService.delete({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.id,
+      });
+
+      cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+
+      // Limite liberado: volta para 0
+      expect(cardCheck.rows[0].used_credit_limit).toBe(0);
+    });
+
+    test('SUCESSO - Excluir todas as parcelas (all_installments: true) libera o limite total do grupo', async () => {
+      // 1. Cria compra parcelada de 3x de 50.00 (total R$ 150,00)
+      const createPayload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        status: 'pending',
+        value: 150.00,
+        description: 'Compra 3x cartão',
+        purchase_date: '2026-07-05',
+        installments_number: 3,
+      };
+
+      const created = await transactionService.create(createPayload);
+
+      let cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(cardCheck.rows[0].used_credit_limit).toBe(150.00);
+
+      // 2. Exclui todas as parcelas
+      await transactionService.delete({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.rows[0].id,
+        all_installments: true,
+      });
+
+      cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+
+      // Limite total liberado: volta para 0
+      expect(cardCheck.rows[0].used_credit_limit).toBe(0);
+    });
+
+    test('SUCESSO - Excluir parcela individual sem redistribuição libera o valor daquela parcela', async () => {
+      // 1. Cria compra de 3x de 50.00 (R$ 150,00)
+      const createPayload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        status: 'pending',
+        value: 150.00,
+        description: 'Compra 3x cartão',
+        purchase_date: '2026-07-05',
+        installments_number: 3,
+      };
+
+      const created = await transactionService.create(createPayload);
+
+      // 2. Exclui a 1ª parcela (R$ 50,00) sem redistribute
+      await transactionService.delete({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.rows[0].id,
+        redistribute: false,
+      });
+
+      const cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+
+      // 150.00 - 50.00 = 100.00
+      expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+    });
+
+    test('SUCESSO (EDGE CASE) - Excluir parcela individual com redistribute: true mantém o limite inalterado', async () => {
+      // 1. Cria compra de 2x de 50.00 (R$ 100,00)
+      const createPayload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        status: 'pending',
+        value: 100.00,
+        description: 'Compra 2x cartão',
+        purchase_date: '2026-07-05',
+        installments_number: 2,
+      };
+
+      const created = await transactionService.create(createPayload);
+
+      // 2. Exclui 1 parcela com redistribuição (o valor total de 100.00 passa para a parcela restante)
+      await transactionService.delete({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.rows[0].id,
+        redistribute: true,
+      });
+
+      const cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+
+      // A dívida total continua R$ 100,00, logo o limite ocupado não muda
+      expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+    });
+
+    test('SUCESSO (EDGE CASE) - Excluir transação já cancelada não reduz o limite novamente', async () => {
+      // 1. Cria transação simples de R$ 100,00
+      const created = await transactionService.create({
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        status: 'pending',
+        value: 100.00,
+        description: 'Compra simples',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      });
+
+      // 2. Cancela a transação (o cancelamento já liberou os R$ 100,00)
+      await transactionService.update({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.id,
+        status: 'cancelled',
+      });
+
+      let cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(cardCheck.rows[0].used_credit_limit).toBe(0);
+
+      // 3. Exclui a transação que já estava cancelada
+      await transactionService.delete({
+        user_id: testData.userId,
+        wallet_id: testData.walletId,
+        transaction_id: created.id,
+      });
+
+      cardCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+
+      // Não deve subtrair novamente (não fica negativo)
+      expect(cardCheck.rows[0].used_credit_limit).toBe(0);
+    });
+  });
+
   test('FALHA / ATOMICIDADE - Deve realizar rollback e manter ambas as transações se houver falha de saldo no estorno da transferência', async () => {
     // Zerando saldo para forçar erro
     await pool.query(

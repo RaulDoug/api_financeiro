@@ -3,7 +3,7 @@ import { createUpdateQuery } from '../transactionsBuilders.js';
 import { updateBankAccountBalanceHelper, bankAccountHelper, revertingBalance, calculateBalance } from '../transactionsHelpers.js';
 import AppError from '../../../../errors/AppError.js';
 
-const updateCreditCardLimitHelper = async ({ payMethodId, delta, client}) => {
+export const updateCreditCardLimitHelper = async ({ payMethodId, delta, client}) => {
   if (delta === 0) return;
 
   const payMethodQuery = await client.query(

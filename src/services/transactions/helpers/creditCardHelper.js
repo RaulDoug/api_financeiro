@@ -15,7 +15,7 @@ const creditCardInstallmentsHelper = async (data, payMethodValues, payload, base
     installmentValue = (data.value / data.installments_number).toFixed(2);
   }
 
-  await UpdateCreditLimitHelper(data, payMethodValues, client);
+  await creditLimitHelper(data, payMethodValues, client);
 
   const result = [];
 
@@ -66,7 +66,7 @@ const creditCardInstallmentsHelper = async (data, payMethodValues, payload, base
   return { rows: result };
 };
 
-const UpdateCreditLimitHelper = async (data, payMethodValues, client) => {
+const creditLimitHelper = async (data, payMethodValues, client) => {
   const totalCreditLimit = Number(payMethodValues.rows[0].credit_limit);
   const usedCreditLimit = Number(payMethodValues.rows[0].used_credit_limit);
   const transactionValue = data.value;
@@ -135,7 +135,7 @@ export const creditCardHelper = async (data, payMethodValues, payload, client) =
   const newDueDate = `${invoiceYear}-${invoiceMonth}-${payMethodDueDay}`;
   data.due_date = newDueDate;
 
-  await UpdateCreditLimitHelper(data, payMethodValues, client);
+  await creditLimitHelper(data, payMethodValues, client);
 
   const payloadCreditCard = buildPayloadForCreate(data, payMethodValues, data.bank_account_id, payload);
 
