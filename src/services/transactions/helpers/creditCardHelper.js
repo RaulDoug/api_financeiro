@@ -79,7 +79,7 @@ const UpdateCreditLimitHelper = async (data, payMethodValues, client) => {
 
   await client.query(
     'UPDATE pay_methods SET used_credit_limit = $1 WHERE id = $2',
-    [payMethodValues.rows[0].id, newUsedLimit],
+    [newUsedLimit, payMethodValues.rows[0].id],
   );
 
   return newUsedLimit;

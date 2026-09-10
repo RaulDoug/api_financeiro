@@ -1493,6 +1493,135 @@ describe('TransactionServices - create()', () => {
       expect(format(result.rows[0].due_date, 'yyyy-MM-dd')).toBe('2026-03-03');
     });
   });
+
+  describe('Regras de validação de cartão de crédito', () => {
+    test('Deve somar o valor ao used_credit_limit do cartão ao criar compra à vista (1 parcela)', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 300.00,
+        description: 'Compra no cartão à vista',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      };
+      await transactionService.create(payload);
+      const payMethodCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(payMethodCheck.rows[0].used_credit_limit).toBe(300.00);
+    });
+
+    test('Deve comprometer o valor total no used_credit_limit ao criar compra parcelada no cartão', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 600.00,
+        description: 'Compra parcelada no cartão',
+        purchase_date: '2026-07-05',
+        installments_number: 3,
+      };
+      await transactionService.create(payload);
+      const payMethodCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(payMethodCheck.rows[0].used_credit_limit).toBe(600.00);
+    });
+
+    test('Deve acumular o used_credit_limit após múltiplas compras no cartão', async () => {
+      const payload1 = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 250.00,
+        description: 'Primeira compra',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      };
+      const payload2 = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 350.00,
+        description: 'Segunda compra',
+        purchase_date: '2026-07-06',
+        installments_number: 1,
+      };
+      await transactionService.create(payload1);
+      await transactionService.create(payload2);
+      const payMethodCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(payMethodCheck.rows[0].used_credit_limit).toBe(600.00);
+    });
+
+    test('Deve rejeitar transação quando o valor ultrapassar o limite total do cartão', async () => {
+      // testData.payMethodCreditCardId possui limite de R$ 2.000,00
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 2500.00,
+        description: 'Compra acima do limite',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      };
+      await expect(transactionService.create(payload))
+        .rejects
+        .toThrow('Cartão sem limite suficiente para realizar transação');
+    });
+    
+    test('Deve realizar rollback e não alterar limite nem salvar transação se o limite for excedido', async () => {
+      const payload = {
+        wallet_id: testData.walletId,
+        creator_user_id: testData.userId,
+        bank_account_id: testData.bankAccountId,
+        category_id: testData.categorieExpenseId,
+        pay_methods_id: testData.payMethodCreditCardId,
+        counterparty_id: testData.counterpartyPayerId,
+        type: 'expenses',
+        value: 3000.00,
+        description: 'Compra com estouro de limite',
+        purchase_date: '2026-07-05',
+        installments_number: 1,
+      };
+      await expect(transactionService.create(payload)).rejects.toThrow();
+      const payMethodCheck = await pool.query(
+        'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      const transactionsCheck = await pool.query(
+        'SELECT * FROM transactions WHERE pay_methods_id = $1',
+        [testData.payMethodCreditCardId],
+      );
+      expect(payMethodCheck.rows[0].used_credit_limit).toBe(0);
+      expect(transactionsCheck.rows.length).toBe(0);
+    });
+  });
 });
 
 
