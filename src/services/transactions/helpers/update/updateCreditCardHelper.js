@@ -1,6 +1,34 @@
 import { installmentsList, validadeInvoiceIdHelper } from './updateTransactionsHelper.js';
 import { createUpdateQuery } from '../transactionsBuilders.js';
 import { updateBankAccountBalanceHelper, bankAccountHelper, revertingBalance, calculateBalance } from '../transactionsHelpers.js';
+import AppError from '../../../../errors/AppError.js';
+
+const updateCreditCardLimitHelper = async ({ payMethodId, delta, client}) => {
+  if (delta === 0) return;
+
+  const payMethodQuery = await client.query(
+    'SELECT credit_limit, used_credit_limit FROM pay_methods WHERE id = $1 FOR UPDATE',
+    [payMethodId],
+  );
+
+  const totalLimit = Number(payMethodQuery.rows[0].credit_limit);
+
+  const currentUsed = Number(payMethodQuery.rows[0].used_credit_limit || 0);
+
+  const newUsedLimit = Number((currentUsed + delta).toFixed(2));
+
+  if (delta > 0 && newUsedLimit > totalLimit) {
+    throw new AppError(
+      `Limite insuficiente no cartão. Limite total: ${totalLimit} | Disponível: ${totalLimit - currentUsed}`,
+      400,
+    );
+  }
+
+  await client.query(
+    'UPDATE pay_methods SET used_credit_limit = $1 WHERE id = $2',
+    [newUsedLimit, payMethodId],
+  );
+};
 
 export const updateRevertingCreditCardHelper = async ({
   client,
@@ -14,12 +42,20 @@ export const updateRevertingCreditCardHelper = async ({
 }) => {
   const { invoiceYear, invoiceMonth, payMethodDueDay } = validadeInvoiceIdHelper(validatePayMethod.rows[0].due_day, validatePayMethod.rows[0].closing_day, finalPurchaseDate, currentTransaction);
   const { allInstallmentsList } = await installmentsList(transaction_id, client);
-  const [purchaseYear, purchaseMonth] = finalPurchaseDate.toISOString().split('T')[0].split('-');
+  const dateStr = finalPurchaseDate instanceof Date 
+    ? finalPurchaseDate.toISOString().split('T')[0] 
+    : String(finalPurchaseDate).split('T')[0];
+  const [purchaseYear, purchaseMonth] = dateStr.split('-');
 
   let invoiceMonthNew = invoiceMonth - 1;
   let invoiceYearNew = invoiceYear;
 
+  let totalNewCardValue = 0;
+
   for (const item of allInstallmentsList) {
+    const itemValue = payload.value ? Number(payload.value) : Number(item.value);
+    totalNewCardValue += itemValue;
+
     invoiceMonthNew += 1;
 
     if (purchaseMonth === '12') {
@@ -43,6 +79,12 @@ export const updateRevertingCreditCardHelper = async ({
 
     allInstallmentsUpdateResult.push(result.rows[0]);
   }
+
+  await updateCreditCardLimitHelper({
+    payMethodId: fieldsToUpdate.pay_methods_id,
+    delta: totalNewCardValue,
+    client,
+  });
 
   return allInstallmentsUpdateResult;
 };
@@ -69,6 +111,8 @@ export const updateForCreditCardHelper = async ({
   const { accountBalance, accountAllowNegative } = await bankAccountHelper(finalBankAccountId, client);
 
   if (data.all_installments === true) {
+    const totalOldValue = allInstallmentsList.reduce((acc, row) => acc + Number(row.value), 0);
+
     const feesToCalculate = data.fees || 0;
     const assessmentToCalculate = data.assessment || 0;
 
@@ -77,6 +121,15 @@ export const updateForCreditCardHelper = async ({
     // Calulando juros e multas
     const feesAndAssessment = Number(feesToCalculate) + Number(assessmentToCalculate);
     const feesCalculatedForInstallments = Number(feesAndAssessment) / Number(allInstallmentsList.length);
+
+    const totalNewValue = totalOldValue + feesAndAssessment;
+    const delta = totalNewValue - totalOldValue;
+
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta,
+      client,
+    });
 
     // Revertendo o saldo da conta caso o currentTransaction.status for 'completed'
     if (currentTransaction.status === 'completed') {
@@ -140,6 +193,12 @@ export const updateForCreditCardHelper = async ({
   }
 
   if (finalStatus === 'cancelled') {
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta: -Number(currentTransaction.value),
+      client,
+    });
+
     const sortedList = [...allInstallmentsList].sort((a, b) => {
       return new Date(a.due_date) - new Date(b.due_date);
     });
@@ -175,6 +234,24 @@ export const updateForCreditCardHelper = async ({
     }
 
     return cancelledTransaction;
+  }
+
+  const isReactivating = currentTransaction.status === 'cancelled' && finalStatus !== 'cancelled';
+
+  const isValueChanging = 'value' in fieldsToUpdate;
+
+  if ((isValueChanging || isReactivating) && !data.all_installments) {
+    const impactoAntigo = currentTransaction.status === 'cancelled' ? 0 : Number(currentTransaction.value);
+
+    const impactoNovo = finalStatus === 'cancelled' ? 0 : Number(fieldsToUpdate.value || currentTransaction.value);
+
+    const delta = impactoNovo - impactoAntigo;
+    
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta,
+      client,
+    });
   }
 
   if ('purchase_date' in fieldsToUpdate) {

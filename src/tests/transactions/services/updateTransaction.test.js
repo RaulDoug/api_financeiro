@@ -2305,6 +2305,219 @@ describe('TransactionServices - update()', () => {
         expect(result.status).toBe('expired');
       });
     });
+
+    describe('used_credit_limit - Controle e Atualização de Limite', () => {
+      test('SUCESSO - Cenário A: Cancelar parcela de cartão libera o limite correspondente no used_credit_limit', async () => {
+        const creditCard = await creditCardPendingAll(); // Criou 3x de 50.00 (used_credit_limit = 150.00)
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.secondInstallmentId,
+          status: 'cancelled',
+        };
+
+        const result = await transactionService.update(payload);
+
+        expect(result.status).toBe('cancelled');
+
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+        // Parcela de 50.00 cancelada: 150.00 - 50.00 = 100.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+      });
+
+      test('SUCESSO - Cenário B: all_installments com juros e multa consome limite adicional correspondente', async () => {
+        const creditCard = await creditCardPendingAll(); // used_credit_limit = 150.00
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.firstInstallmentId,
+          all_installments: true,
+          fees: 30.00,
+          assessment: 15.00,
+          description: 'Compra no cartão de crédito alterada',
+        };
+
+        await transactionService.update(payload);
+        
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+        // Limite anterior (150.00) + juros/multa (45.00) = 195.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(195.00);
+      });
+
+      test('SUCESSO - Cenário C: Alterar valor de parcela individual ajusta o used_credit_limit conforme o delta', async () => {
+        const creditCard = await creditCardPendingAll(); // 3x de 50.00 (used_credit_limit = 150.00)
+
+        // 1. Aumento de valor: parcela 1 de 50.00 passa para 80.00 (+30.00 de delta)
+        const payloadIncrease = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.firstInstallmentId,
+          value: 80.00,
+        };
+        await transactionService.update(payloadIncrease);
+        
+        let cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+        // 150.00 + 30.00 = 180.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(180.00);
+
+        // 2. Redução de valor: mesma parcela de 80.00 passa para 40.00 (-40.00 de delta)
+        const payloadDecrease = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.firstInstallmentId,
+          value: 40.00,
+        };
+        await transactionService.update(payloadDecrease);
+
+        cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+        // 180.00 - 40.00 = 140.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(140.00);
+      });
+
+      test('SUCESSO - Não-cartão para Cartão: Mudar forma de pagamento para cartão consome o limite integral', async () => {
+        // testData.expenseTransactionId é despesa comum em dinheiro/pix no valor de 100.00
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: testData.expenseTransactionId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          purchase_date: '2026-07-05',
+        };
+
+        await transactionService.update(payload);
+
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        // Cartão absorveu os 100.00 da transação convertida
+        expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+      });
+
+      test('FALHA - Bloqueio por estouro de limite: Recusa update e realiza rollback se exceder o limite', async () => {
+        const creditCard = await creditCardPendingAll(); // used: 150.00, total: 2000.00
+
+        // Parcela de 50.00 tenta subir para 2500.00 (delta = +2450.00, estoura o total de 2000.00)
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.firstInstallmentId,
+          value: 2500.00,
+        };
+
+        await expect(transactionService.update(payload))
+          .rejects
+          .toThrow('Limite insuficiente no cartão');
+
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        // Limite permaneceu inalterado (150.00)
+        expect(cardCheck.rows[0].used_credit_limit).toBe(150.00);
+      });
+
+      test('SUCESSO - Alterar apenas descrição ou categoria mantém o used_credit_limit inalterado', async () => {
+        const creditCard = await creditCardPendingAll(); // used = 150.00
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.firstInstallmentId,
+          description: 'Nova descrição neutra',
+        };
+
+        await transactionService.update(payload);
+
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        expect(cardCheck.rows[0].used_credit_limit).toBe(150.00);
+      });
+
+      test('FALHA - Recusa conversão de não-cartão para cartão se o valor exceder o limite disponível', async () => {
+        // Simula cartão quase cheio (1.950,00 de 2.000,00)
+        await pool.query(
+          'UPDATE pay_methods SET used_credit_limit = 1950.00 WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        // Tenta converter despesa existente de R$ 100,00 para o cartão (1950 + 100 = 2050 > 2000)
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: testData.expenseTransactionId,
+          pay_methods_id: testData.payMethodCreditCardId,
+        };
+
+        await expect(transactionService.update(payload))
+          .rejects
+          .toThrow('Limite insuficiente no cartão');
+
+        const cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        // Limite permaneceu inalterado em 1950.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(1950.00);
+      });
+
+      test('SUCESSO - Reativar parcela cancelada (cancelled -> pending) volta a comprometer o limite no cartão', async () => {
+        const creditCard = await creditCardPendingAll(); // used_credit_limit = 150.00 (3x 50.00)
+
+        // 1. Cancela a parcela (used_credit_limit cai para 100.00)
+        await transactionService.update({
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.secondInstallmentId,
+          status: 'cancelled',
+        });
+
+        let cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+        expect(cardCheck.rows[0].used_credit_limit).toBe(100.00);
+
+        // 2. Reativa a parcela cancelada para pending
+        const payloadReactivate = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: creditCard.secondInstallmentId,
+          status: 'pending',
+          due_date: '2026-08-10',
+        };
+
+        await transactionService.update(payloadReactivate);
+
+        cardCheck = await pool.query(
+          'SELECT used_credit_limit FROM pay_methods WHERE id = $1',
+          [testData.payMethodCreditCardId],
+        );
+
+        // O limite volta a ser comprometido: 100.00 + 50.00 = 150.00
+        expect(cardCheck.rows[0].used_credit_limit).toBe(150.00);
+      });
+    });
   });
 
   describe('Transações recorrentes - is_recurrent e installments_group_id', () => {
