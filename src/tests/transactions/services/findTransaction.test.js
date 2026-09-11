@@ -1,28 +1,11 @@
 import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import TransactionServices from '../../../services/transactions/transactionServices.js';
 import { setupTransactionData } from '../transactionTestUtils.js';
-import { createAuthenticatedUser, createWallet } from '../../testUtils.js';
+import { createAuthenticatedUser, createWallet, createTransaction } from '../../testUtils.js';
 import request from 'supertest';
 import app from '../../../app.js';
 import pool from '../../../config/db.js';
 import { format } from 'date-fns';
-
-const createTransaction = async (service, testData, name, overrides = {}) => {
-  const type = overrides.type || 'NO TYPE';
-  const status = overrides.status || 'NO STATUS';
-  const description = overrides.description || `Transação de tipo: ${type} e status: ${status} - ${name}`;
-
-  return service.create({
-    wallet_id: testData.walletId,
-    creator_user_id: testData.userId,
-    bank_account_id: testData.bankAccountId,
-    category_id: testData.categorieIncomeId,
-    pay_methods_id: testData.payMethodId,
-    counterparty_id: testData.counterpartyPayerId,
-    description: description,
-    ...overrides,
-  });
-};
 
 describe('TransactionsServices - find()', () => {
   let testData;

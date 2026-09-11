@@ -72,12 +72,12 @@ export default class TransactionServices {
           throw new AppError('Os campos de data da transação e data de vencimento são obrigatórios');
         }
 
-        if (!bankAccount.accountAllowNegative && newBalance < 0) {
-          throw new AppError('Conta bancária com saldo insuficente para realizar a transação', 422);
-        }
-
         // Validação se a despesa tem o status de completed ou não.
         if (data.status === 'completed') {
+          if (!bankAccount.accountAllowNegative && newBalance < 0) {
+            throw new AppError('Conta bancária com saldo insuficente para realizar a transação', 422);
+          }
+
           await updateBankAccountBalanceHelper(data.bank_account_id, newBalance, client);
         }
 

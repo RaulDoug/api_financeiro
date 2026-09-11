@@ -488,28 +488,34 @@ Representa pagadores/recebedores nas transações.
     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     "display_id": 1,
     "wallet_id": "uuid-da-carteira",
-    "bank_account_id": "uuid-da-conta-ou-null",
+    "bank_account_id": null,
     "name": "PIX",
     "credit_card": false,
     "due_day": null,
     "closing_day": null,
+    "last_four_digits": null,
+    "credit_limit": null,
+    "used_credit_limit": null,
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 ]
 ```
 
-**Resposta com filtro `200` — objeto:**
+**Resposta com filtro `200` — objeto (cartão de crédito):**
 ```json
 {
   "item": {
     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "display_id": 1,
+    "display_id": 2,
     "wallet_id": "uuid-da-carteira",
     "bank_account_id": "uuid-da-conta",
     "name": "Nubank Crédito",
     "credit_card": true,
     "due_day": 10,
     "closing_day": 3,
+    "last_four_digits": "1234",
+    "credit_limit": "5000.00",
+    "used_credit_limit": "1200.00",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 }
@@ -518,7 +524,7 @@ Representa pagadores/recebedores nas transações.
 ---
 
 ### `POST /api/pay-method/register`
-Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os campos `bank_account_id`, `due_day` e `closing_day` se tornam **obrigatórios**.
+Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os campos `bank_account_id`, `due_day`, `closing_day`, `last_four_digits` e `credit_limit` se tornam **obrigatórios**.
 
 **Body (débito/dinheiro/pix):**
 ```json
@@ -535,7 +541,9 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
   "credit_card": true,
   "bank_account_id": "uuid-da-conta",
   "due_day": 10,
-  "closing_day": 3
+  "closing_day": 3,
+  "last_four_digits": "1234",
+  "credit_limit": 5000.00
 }
 ```
 
@@ -546,6 +554,11 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 | `bank_account_id` | UUID | ⚠️ | Obrigatório se `credit_card: true` |
 | `due_day` | número inteiro | ⚠️ | Obrigatório se `credit_card: true` |
 | `closing_day` | número inteiro | ⚠️ | Obrigatório se `credit_card: true` |
+| `last_four_digits` | string, mín. 4 dígitos numéricos | ⚠️ | Obrigatório se `credit_card: true` |
+| `credit_limit` | número | ⚠️ | Obrigatório se `credit_card: true` |
+
+> [!WARNING]
+> Se `credit_card: true` e qualquer um dos 5 campos obrigatórios estiver ausente, a API retorna `422` com a mensagem: *"Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão"*
 
 ---
 

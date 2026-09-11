@@ -90,7 +90,7 @@ O coração operacional do sistema, onde o usuário passa tempo buscando ou lan�
 *   **Visão Geral das Contas:** Cards mostrando Instituição (Banco), Saldo e um indicativo visual se a conta permite saldo negativo (`allow_negative_balance`).
 *   **Modal CRUD:** Adicionar conta, editar nome, ajustar saldo.
 
-### 3.6. Investimentos (Diferencial do App) - (Ainda pendente a desenvolvimento)
+### 3.6. Investimentos (Diferencial do App)
 A base de dados separa as transações de investimento (`investments_transactions`), então precisamos de um ambiente próprio para isso, para não sujar o fluxo de caixa normal de gastos.
 *   **Dashboard Específico:** Saldo Total Investido.
 *   **Lista de Ativos (`investment_assets`):** Nome do ativo, Conta de Origem vinculada, Data de vencimento do ativo, e o saldo atualizado.

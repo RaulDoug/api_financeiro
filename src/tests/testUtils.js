@@ -42,3 +42,20 @@ export async function createWallet(userId = null, role = 'owner') {
 
   return wallet;
 }
+
+export async function createTransaction(service, testData, name, overrides = {}) {
+  const type = overrides.type || 'NO TYPE';
+  const status = overrides.status || 'NO STATUS';
+  const description = overrides.description || `Transação de tipo: ${type} e status: ${status} - ${name}`;
+
+  return service.create({
+    wallet_id: testData.walletId,
+    creator_user_id: testData.userId,
+    bank_account_id: testData.bankAccountId,
+    category_id: testData.categorieIncomeId,
+    pay_methods_id: testData.payMethodId,
+    counterparty_id: testData.counterpartyPayerId,
+    description: description,
+    ...overrides,
+  });
+};
