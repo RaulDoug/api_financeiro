@@ -57,6 +57,13 @@ x-wallet-id: <uuid-da-carteira>
 | Ativo de Invest. | POST | `/api/investiment-asset/register` | ✅ | ✅ |
 | Ativo de Invest. | PATCH | `/api/investiment-asset/update/:id` | ✅ | ✅ |
 | Ativo de Invest. | DELETE | `/api/investiment-asset/delete/:id` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/summary` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/account-balances` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/expense-by-category` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/income-vs-expense` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/credit-card-summary` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/overdue-alerts` | ✅ | ✅ |
+| Dashboard | GET | `/api/dashboard-report/recent-transactions` | ✅ | ✅ |
 
 ---
 
@@ -977,7 +984,259 @@ Remove uma transação. `:id` = UUID da transação.
 
 ---
 
-## 🧩 Padrão de Erros
+## 📊 Dashboard — Relatórios
+
+> [!IMPORTANT]
+> Todas as rotas do dashboard exigem `Authorization: Bearer <token>` + `x-wallet-id: <uuid>`.
+
+> [!NOTE]
+> Rotas que aceitam `startDate` / `endDate` sem parâmetros usam como padrão o **primeiro e último dia do mês corrente**.
+
+---
+
+### `GET /api/dashboard-report/summary`
+Resumo financeiro da carteira: entradas, saídas, pendências e projeção do mês.
+
+**Query Params (opcionais):**
+| Param | Tipo | Formato |
+|---|---|---|
+| `startDate` | string | `YYYY-MM-DD` |
+| `endDate` | string | `YYYY-MM-DD` |
+
+**Resposta `200`:**
+```json
+{
+  "completedIncomes": 5000.00,
+  "completedExpenses": 1800.00,
+  "pendingIncomes": 1200.00,
+  "pendingExpenses": 650.00,
+  "totalBalance": 8500.00,
+  "monthForecast": 9050.00
+}
+```
+
+| Campo | Descrição |
+|---|---|
+| `completedIncomes` | Total de entradas pagas no período |
+| `completedExpenses` | Total de despesas pagas no período |
+| `pendingIncomes` | Total de entradas pendentes no período |
+| `pendingExpenses` | Total de despesas pendentes no período |
+| `totalBalance` | Saldo total somado de todas as contas |
+| `monthForecast` | Projeção: `totalBalance + pendingIncomes - pendingExpenses` |
+
+---
+
+### `GET /api/dashboard-report/account-balances`
+Saldo individual de cada conta bancária e o total consolidado. Não aceita filtros de data.
+
+**Resposta `200`:**
+```json
+{
+  "accountBalances": [
+    {
+      "id": "uuid-da-conta",
+      "bank_name": "Nubank",
+      "balance": 3500.00
+    },
+    {
+      "id": "uuid-da-conta-2",
+      "bank_name": "Bradesco",
+      "balance": 5000.00
+    }
+  ],
+  "totalBalances": 8500.00
+}
+```
+
+---
+
+### `GET /api/dashboard-report/expense-by-category`
+Despesas pagas agrupadas por categoria, com valor total e percentual sobre o total geral.
+
+**Query Params (opcionais):**
+| Param | Tipo | Formato |
+|---|---|---|
+| `startDate` | string | `YYYY-MM-DD` |
+| `endDate` | string | `YYYY-MM-DD` |
+
+**Resposta `200`:**
+```json
+{
+  "expensesByCategory": [
+    {
+      "category_id": "uuid-da-categoria",
+      "category_name": "Alimentação",
+      "total_amount": 900.00,
+      "percentage": 50.0
+    },
+    {
+      "category_id": "uuid-da-categoria-2",
+      "category_name": "Transporte",
+      "total_amount": 450.00,
+      "percentage": 25.0
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> Retorna apenas categorias com despesas `status = 'completed'` no período. Ordenado do maior para o menor valor.
+
+---
+
+### `GET /api/dashboard-report/income-vs-expense`
+Comparativo mensal de entradas vs. despesas para o ano inteiro, mais um resumo do mês atual.
+
+**Query Params (opcionais):**
+| Param | Tipo | Padrão |
+|---|---|---|
+| `year` | número inteiro | Ano atual |
+
+**Resposta `200`:**
+```json
+{
+  "incomeVsExpense": {
+    "monthly": {
+      "totalIncome": 5000.00,
+      "totalExpense": 1800.00,
+      "netBalance": 3200.00,
+      "savingsRatePercentage": 64.0
+    },
+    "yearly": [
+      { "month": 1, "income": 4800.00, "expense": 2100.00, "balance": 2700.00 },
+      { "month": 2, "income": 5000.00, "expense": 1900.00, "balance": 3100.00 },
+      { "month": 8, "income": 5000.00, "expense": 1800.00, "balance": 3200.00 }
+    ]
+  }
+}
+```
+
+| Campo | Descrição |
+|---|---|
+| `monthly` | Dados do **mês atual** com taxa de poupança |
+| `yearly` | Array com os 12 meses (1–12), mesmo que zerados |
+| `savingsRatePercentage` | `((income - expense) / income) * 100` |
+
+---
+
+### `GET /api/dashboard-report/credit-card-summary`
+Resumo de todos os cartões de crédito: limite, limite usado, disponível e fatura do mês corrente.
+
+**Query Params (opcionais):**
+| Param | Tipo | Valores |
+|---|---|---|
+| `includeTransactions` | string | `"true"` / `"false"` |
+
+**Resposta `200` (sem transações):**
+```json
+{
+  "creditCardSummary": [
+    {
+      "pay_method_id": "uuid-do-metodo",
+      "name": "Nubank Crédito",
+      "credit_limit": 5000.00,
+      "used_credit_limit": 1200.00,
+      "available_limit": 3800.00,
+      "current_invoice_total": 450.00
+    }
+  ]
+}
+```
+
+**Resposta `200` (com `includeTransactions=true`):**
+```json
+{
+  "creditCardSummary": [
+    {
+      "pay_method_id": "uuid-do-metodo",
+      "name": "Nubank Crédito",
+      "credit_limit": 5000.00,
+      "used_credit_limit": 1200.00,
+      "available_limit": 3800.00,
+      "current_invoice_total": 450.00,
+      "transactions": [
+        {
+          "id": "uuid-da-transacao",
+          "description": "Compra no mercado",
+          "value": "150.00",
+          "status": "pending",
+          "due_date": "2024-08-10"
+        }
+      ]
+    }
+  ]
+}
+```
+
+> [!WARNING]
+> Se `includeTransactions` for enviado com valor diferente de `"true"` ou `"false"`, a API retorna `400`.
+
+---
+
+### `GET /api/dashboard-report/overdue-alerts`
+Lista de transações vencidas ou com status `expired`, ordenadas da mais antiga. Não aceita filtros.
+
+**Resposta `200`:**
+```json
+{
+  "overdueAlerts": {
+    "total_overdue": 2,
+    "items": [
+      {
+        "id": "uuid-da-transacao",
+        "description": "Aluguel",
+        "value": 1200.00,
+        "due_date": "2024-07-05",
+        "type": "expenses",
+        "days_overdue": 41
+      }
+    ]
+  }
+}
+```
+
+| Campo | Descrição |
+|---|---|
+| `total_overdue` | Quantidade de itens vencidos |
+| `days_overdue` | Dias em atraso em relação à data atual |
+
+---
+
+### `GET /api/dashboard-report/recent-transactions`
+Últimas transações da carteira, ordenadas da mais recente.
+
+**Query Params:**
+| Param | Tipo | Obrigatório | Notas |
+|---|---|---|---|
+| `limit` | número inteiro positivo | ✅ | Quantidade de transações a retornar |
+
+**Resposta `200`:**
+```json
+{
+  "recentTransactions": [
+    {
+      "id": "uuid-da-transacao",
+      "description": "Salário",
+      "value": 5000.00,
+      "type": "incomings",
+      "status": "completed",
+      "date": "2024-08-05",
+      "category_name": "Salário",
+      "pay_method_name": "TED"
+    }
+  ]
+}
+```
+
+> [!WARNING]
+> O parâmetro `limit` é **obrigatório** e deve ser um número positivo. Sem ele, retorna `400`.
+
+> [!NOTE]
+> O campo `date` é resolvido na seguinte prioridade: `payment_date` → `purchase_date` → `due_date`.
+
+---
+
+
 
 | Status | Significado |
 |---|---|
