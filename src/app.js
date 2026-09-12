@@ -8,6 +8,7 @@ import counterpartieRoutes from './routes/counterpartieRoutes.js';
 import payMethodRoutes from './routes/payMethodRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 import investimentAssetRoutes from './routes/investimentAssetRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/counterpartie', counterpartieRoutes);
 app.use('/api/pay-method', payMethodRoutes);
 app.use('/api/transaction', transactionRoutes);
 app.use('/api/investiment-asset', investimentAssetRoutes);
+app.use('/api/dashboard-report', dashboardRoutes);
 
 
 export default app;
