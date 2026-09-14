@@ -1,6 +1,6 @@
 import { format, startOfMonth, endOfMonth, isValid, parseISO, isAfter } from 'date-fns';
-import AppError from '../../errors/AppError';
-import { todayHelper } from '../transactions/helpers/transactionsHelpers';
+import AppError from '../../errors/AppError.js';
+import { todayHelper } from '../transactions/helpers/transactionsHelpers.js';
 
 export const resolveDateRange = (filters = {}) => {
   const { today } = todayHelper();
