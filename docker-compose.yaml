@@ -26,6 +26,23 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Raul@2025
       POSTGRES_DB: api_financeiro_test
+  
+  api:
+    build: .
+    container_name: financeiro_api_container
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: financeiro_db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: Raul@2025
+      DB_DATABASE: api_financeiro
+      JWT_SECRET: 7be82d71af7c14c7f8c992b67e4f0b0e836c53422ffb29a9f044b0f3ad946b90e3ff786f40825ff0631c3d6ceb45ae481d006f9507a8f7b6f7970708ea9b922c
+    depends_on:
+      - financeiro_db
 
 volumes:
   financeiro_db_data:
