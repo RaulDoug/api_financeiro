@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import WalletSeedService from './walletSeedService.js';
 
 export default class WalletService {
   async walletRegister(userId, name) {
@@ -13,6 +14,9 @@ export default class WalletService {
 
       const response = await client.query(query);
       const wallet = response.rows[0];
+
+      const walletSeedService = new WalletSeedService();
+      await walletSeedService.seed(client, wallet.id);
 
       const relationQuery = {
         text: 'INSERT INTO users_wallets(user_id, wallet_id, role) VALUES($1, $2, $3)',

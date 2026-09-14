@@ -1,8 +1,10 @@
-import { expect, test } from 'vitest';
+import { expect, test, describe, vi } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import pool from '../config/db.js';
 import { createAuthenticatedUser } from './testUtils.js';
+import WalletSeedService from '../services/walletSeedService.js';
+import { DEFAULT_WALLET_SEED } from '../constants/defaultWalletSeed.js';
 
 // Criar usuário para realizar os testes
 
@@ -67,7 +69,6 @@ test('Não deve permitir cadastro sem autenticação', async () => {
   expect(response.status).toBe(401);
   expect(response.body.message).toBe('Acesso negado. Token não fornecido ou inválido');
 });
-
 
 // Teste de edição de cadastro da carteira
 test('Deve editar o nome de uma carteria com sucesso (Sendo owner/editor)', async () => {
@@ -203,4 +204,177 @@ test('Não deve excluir carteira se o usuário for apenas editor', async () => {
 
   expect(deleteWalletWithoutPermission.status).toBe(400);
   expect(deleteWalletWithoutPermission.body.message).toBe('Usuário sem permissão para exclusão.');
+});
+
+// ------------ SEED PADRÃO DA CARTEIRA ------------
+describe('Seed padrão da carteira', () => {
+  test('Deve criar uma conta bancária inicial padrão ao registrar uma nova carteira', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Seed Contas' });
+
+    expect(response.status).toBe(201);
+    const walletId = response.body.wallet.id;
+
+    const accountsResponse = await request(app)
+      .get('/api/bank-account')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(accountsResponse.status).toBe(200);
+    expect(accountsResponse.body.length).toBe(1);
+    expect(accountsResponse.body[0].bank_name).toBe(DEFAULT_WALLET_SEED.bank_accounts.bank_name);
+    expect(Number(accountsResponse.body[0].balance)).toBe(DEFAULT_WALLET_SEED.bank_accounts.balance);
+  });
+
+  test('Deve criar os métodos de pagamento padrão vinculados à conta bancária inicial', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Seed Métodos' });
+
+    expect(response.status).toBe(201);
+    const walletId = response.body.wallet.id;
+
+    const accountsResponse = await request(app)
+      .get('/api/bank-account')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    const bankAccountId = accountsResponse.body[0].id;
+
+    const payMethodsResponse = await request(app)
+      .get('/api/pay-method')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(payMethodsResponse.status).toBe(200);
+    expect(payMethodsResponse.body.length).toBe(DEFAULT_WALLET_SEED.pay_methods.length);
+
+    for (const expectedPm of DEFAULT_WALLET_SEED.pay_methods) {
+      const found = payMethodsResponse.body.find(pm => pm.name === expectedPm.name);
+      expect(found).toBeDefined();
+      expect(found.bank_account_id).toBe(bankAccountId);
+      expect(found.credit_card).toBe(expectedPm.credit_card);
+    }
+  });
+
+  test('Deve criar as categorias padrão de receitas e despesas com display_id gerado', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Seed Categorias' });
+
+    expect(response.status).toBe(201);
+    const walletId = response.body.wallet.id;
+
+    const categoriesResponse = await request(app)
+      .get('/api/categorie')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(categoriesResponse.status).toBe(200);
+    expect(categoriesResponse.body.length).toBe(DEFAULT_WALLET_SEED.categories.length);
+
+    for (const expectedCat of DEFAULT_WALLET_SEED.categories) {
+      const found = categoriesResponse.body.find(c => c.name === expectedCat.name && c.type === expectedCat.type);
+      expect(found).toBeDefined();
+      expect(found.display_id).toBeGreaterThan(0);
+    }
+  });
+
+  test('Deve criar as contrapartes padrão (payers e payees)', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Seed Contrapartes' });
+
+    expect(response.status).toBe(201);
+    const walletId = response.body.wallet.id;
+
+    const counterpartiesResponse = await request(app)
+      .get('/api/counterpartie')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(counterpartiesResponse.status).toBe(200);
+    expect(counterpartiesResponse.body.length).toBe(DEFAULT_WALLET_SEED.counterparties.length);
+
+    for (const expectedCp of DEFAULT_WALLET_SEED.counterparties) {
+      const found = counterpartiesResponse.body.find(cp => cp.name === expectedCp.name && cp.type === expectedCp.type);
+      expect(found).toBeDefined();
+      expect(found.display_id).toBeGreaterThan(0);
+    }
+  });
+
+  test('Deve permitir ao usuário editar e excluir registros criados pelo seed padrão', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Seed Autonomia' });
+
+    expect(response.status).toBe(201);
+    const walletId = response.body.wallet.id;
+
+    const categoriesResponse = await request(app)
+      .get('/api/categorie')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    const firstCategory = categoriesResponse.body[0];
+
+    const updateResponse = await request(app)
+      .patch(`/api/categorie/update/${firstCategory.display_id}`)
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId)
+      .send({ name: 'Nome de Categoria Alterado' });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.item.name).toBe('Nome de Categoria Alterado');
+
+    const deleteResponse = await request(app)
+      .delete(`/api/categorie/delete/${firstCategory.display_id}`)
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(deleteResponse.status).toBe(200);
+
+    const checkCategoriesResponse = await request(app)
+      .get('/api/categorie')
+      .set('Authorization', authHeader)
+      .set('x-wallet-id', walletId);
+
+    expect(checkCategoriesResponse.body.length).toBe(DEFAULT_WALLET_SEED.categories.length - 1);
+  });
+
+  test('Deve efetuar rollback e não persistir a carteira se ocorrer erro durante o seed', async () => {
+    const { authHeader } = await createAuthenticatedUser();
+    const seedSpy = vi.spyOn(WalletSeedService.prototype, 'seed').mockRejectedValueOnce(new Error('Erro forçado de seed'));
+
+    const response = await request(app)
+      .post('/api/wallet/register')
+      .set('Authorization', authHeader)
+      .send({ name: 'Carteira Rollback Teste' });
+
+    expect(response.status).toBe(500);
+
+    const walletInDb = await pool.query(
+      'SELECT * FROM wallets WHERE name = $1',
+      ['Carteira Rollback Teste'],
+    );
+    expect(walletInDb.rows.length).toBe(0);
+
+    seedSpy.mockRestore();
+  });
 });
