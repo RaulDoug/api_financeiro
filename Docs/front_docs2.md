@@ -495,6 +495,8 @@ Todos enviados como query params na URL:
 | Data de criação (de/até)    | `created_at_from` / `created_at_to`       | Datepicker range  | ❌                        |
 | Recorrente                  | `is_recurrent`                            | Toggle            | ❌ (`"true"` / `"false"`) |
 | Ordenação                   | `order_by` + `order_dir`                  | Select + ASC/DESC | ❌                        |
+| Paginação (página)          | `page`                                    | Número (def: `1`) | ❌                        |
+| Paginação (limite)          | `limit`                                   | Número 20-100     | ❌                        |
 
 **Valores aceitos em `type`:** `incomings`, `expenses`, `transfers`  
 **Valores aceitos em `status`:** `pending`, `completed`, `cancelled`, `expired`  
@@ -954,13 +956,13 @@ Acessível via Configurações. Permite renomear e excluir a carteira ativa.
 
 ### Padrão de resposta de Transaction
 
-| Cenário            | Shape                                                             |
-| ------------------ | ----------------------------------------------------------------- |
-| GET (lista)        | `{ "rows": [{...}] }`                                             |
-| GET (vazio)        | `{ "rows": [], "message": "..." }`                                |
-| POST simples       | `{ "message": "...", "item": {...} }`                             |
-| POST parcelado     | `{ "message": "...", "itens": [{...}] }`                          |
-| POST transferência | `{ "message": "...", "expenseRow": {...}, "incomingRow": {...} }` |
+| Cenário            | Shape                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| GET (lista)        | `{ "rows": [{...}], "pagination": { "page": 1, "limit": 20, "total_items": 45, "total_pages": 3, "has_more": true } }`              |
+| GET (vazio)        | `{ "rows": [], "pagination": { "page": 1, "limit": 20, "total_items": 0, "total_pages": 0, "has_more": false }, "message": "..." }` |
+| POST simples       | `{ "message": "...", "item": {...} }`                                                                                               |
+| POST parcelado     | `{ "message": "...", "itens": [{...}] }`                                                                                            |
+| POST transferência | `{ "message": "...", "expenseRow": {...}, "incomingRow": {...} }`                                                                   |
 
 ---
 

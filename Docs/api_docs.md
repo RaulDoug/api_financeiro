@@ -26,45 +26,45 @@ x-wallet-id: <uuid-da-carteira>
 
 ## 📋 Tabela de Rotas
 
-| Módulo | Método | Endpoint | Auth | x-wallet-id |
-|---|---|---|---|---|
-| Auth | POST | `/api/auth/register` | ❌ | ❌ |
-| Auth | POST | `/api/auth/login` | ❌ | ❌ |
-| Wallet | GET | `/api/wallet` | ✅ | ❌ |
-| Wallet | POST | `/api/wallet/register` | ✅ | ❌ |
-| Wallet | PATCH | `/api/wallet/update/:id` | ✅ | ❌ |
-| Wallet | DELETE | `/api/wallet/delete/:id` | ✅ | ❌ |
-| Conta Bancária | GET | `/api/bank-account` | ✅ | ✅ |
-| Conta Bancária | POST | `/api/bank-account/register` | ✅ | ✅ |
-| Conta Bancária | PATCH | `/api/bank-account/update/:id` | ✅ | ✅ |
-| Conta Bancária | DELETE | `/api/bank-account/delete/:id` | ✅ | ✅ |
-| Categoria | GET | `/api/categorie` | ✅ | ✅ |
-| Categoria | POST | `/api/categorie/register` | ✅ | ✅ |
-| Categoria | PATCH | `/api/categorie/update/:id` | ✅ | ✅ |
-| Categoria | DELETE | `/api/categorie/delete/:id` | ✅ | ✅ |
-| Contraparte | GET | `/api/counterpartie` | ✅ | ✅ |
-| Contraparte | POST | `/api/counterpartie/register` | ✅ | ✅ |
-| Contraparte | PATCH | `/api/counterpartie/update/:id` | ✅ | ✅ |
-| Contraparte | DELETE | `/api/counterpartie/delete/:id` | ✅ | ✅ |
-| Método de Pag. | GET | `/api/pay-method` | ✅ | ✅ |
-| Método de Pag. | POST | `/api/pay-method/register` | ✅ | ✅ |
-| Método de Pag. | PATCH | `/api/pay-method/update/:id` | ✅ | ✅ |
-| Método de Pag. | DELETE | `/api/pay-method/delete/:id` | ✅ | ✅ |
-| Transação | GET | `/api/transaction` | ✅ | ✅ |
-| Transação | POST | `/api/transaction/register` | ✅ | ✅ |
-| Transação | PATCH | `/api/transaction/update/:id` | ✅ | ✅ |
-| Transação | DELETE | `/api/transaction/delete/:id` | ✅ | ✅ |
-| Ativo de Invest. | GET | `/api/investiment-asset` | ✅ | ✅ |
-| Ativo de Invest. | POST | `/api/investiment-asset/register` | ✅ | ✅ |
-| Ativo de Invest. | PATCH | `/api/investiment-asset/update/:id` | ✅ | ✅ |
-| Ativo de Invest. | DELETE | `/api/investiment-asset/delete/:id` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/summary` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/account-balances` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/expense-by-category` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/income-vs-expense` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/credit-card-summary` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/overdue-alerts` | ✅ | ✅ |
-| Dashboard | GET | `/api/dashboard-report/recent-transactions` | ✅ | ✅ |
+| Módulo           | Método | Endpoint                                    | Auth | x-wallet-id |
+| ---------------- | ------ | ------------------------------------------- | ---- | ----------- |
+| Auth             | POST   | `/api/auth/register`                        | ❌    | ❌           |
+| Auth             | POST   | `/api/auth/login`                           | ❌    | ❌           |
+| Wallet           | GET    | `/api/wallet`                               | ✅    | ❌           |
+| Wallet           | POST   | `/api/wallet/register`                      | ✅    | ❌           |
+| Wallet           | PATCH  | `/api/wallet/update/:id`                    | ✅    | ❌           |
+| Wallet           | DELETE | `/api/wallet/delete/:id`                    | ✅    | ❌           |
+| Conta Bancária   | GET    | `/api/bank-account`                         | ✅    | ✅           |
+| Conta Bancária   | POST   | `/api/bank-account/register`                | ✅    | ✅           |
+| Conta Bancária   | PATCH  | `/api/bank-account/update/:id`              | ✅    | ✅           |
+| Conta Bancária   | DELETE | `/api/bank-account/delete/:id`              | ✅    | ✅           |
+| Categoria        | GET    | `/api/categorie`                            | ✅    | ✅           |
+| Categoria        | POST   | `/api/categorie/register`                   | ✅    | ✅           |
+| Categoria        | PATCH  | `/api/categorie/update/:id`                 | ✅    | ✅           |
+| Categoria        | DELETE | `/api/categorie/delete/:id`                 | ✅    | ✅           |
+| Contraparte      | GET    | `/api/counterpartie`                        | ✅    | ✅           |
+| Contraparte      | POST   | `/api/counterpartie/register`               | ✅    | ✅           |
+| Contraparte      | PATCH  | `/api/counterpartie/update/:id`             | ✅    | ✅           |
+| Contraparte      | DELETE | `/api/counterpartie/delete/:id`             | ✅    | ✅           |
+| Método de Pag.   | GET    | `/api/pay-method`                           | ✅    | ✅           |
+| Método de Pag.   | POST   | `/api/pay-method/register`                  | ✅    | ✅           |
+| Método de Pag.   | PATCH  | `/api/pay-method/update/:id`                | ✅    | ✅           |
+| Método de Pag.   | DELETE | `/api/pay-method/delete/:id`                | ✅    | ✅           |
+| Transação        | GET    | `/api/transaction`                          | ✅    | ✅           |
+| Transação        | POST   | `/api/transaction/register`                 | ✅    | ✅           |
+| Transação        | PATCH  | `/api/transaction/update/:id`               | ✅    | ✅           |
+| Transação        | DELETE | `/api/transaction/delete/:id`               | ✅    | ✅           |
+| Ativo de Invest. | GET    | `/api/investiment-asset`                    | ✅    | ✅           |
+| Ativo de Invest. | POST   | `/api/investiment-asset/register`           | ✅    | ✅           |
+| Ativo de Invest. | PATCH  | `/api/investiment-asset/update/:id`         | ✅    | ✅           |
+| Ativo de Invest. | DELETE | `/api/investiment-asset/delete/:id`         | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/summary`             | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/account-balances`    | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/expense-by-category` | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/income-vs-expense`   | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/credit-card-summary` | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/overdue-alerts`      | ✅    | ✅           |
+| Dashboard        | GET    | `/api/dashboard-report/recent-transactions` | ✅    | ✅           |
 
 ---
 
@@ -83,10 +83,10 @@ Cria um novo usuário.
 ```
 
 **Regras de validação:**
-| Campo | Regra |
-|---|---|
-| `name` | string, mín. 2, máx. 255 caracteres |
-| `email` | formato de e-mail válido |
+| Campo      | Regra                                                        |
+| ---------- | ------------------------------------------------------------ |
+| `name`     | string, mín. 2, máx. 255 caracteres                          |
+| `email`    | formato de e-mail válido                                     |
 | `password` | mín. 8 chars, 1 maiúscula, 1 minúscula, 1 número, 1 especial |
 
 **Resposta `201`:**
@@ -102,11 +102,11 @@ Cria um novo usuário.
 ```
 
 **Erros:**
-| Status | Mensagem |
-|---|---|
-| `400` | `"Email já cadastrado"` |
-| `422` | Erros de validação do schema |
-| `500` | `"Erro interno do servidor"` |
+| Status | Mensagem                     |
+| ------ | ---------------------------- |
+| `400`  | `"Email já cadastrado"`      |
+| `422`  | Erros de validação do schema |
+| `500`  | `"Erro interno do servidor"` |
 
 ---
 
@@ -138,10 +138,10 @@ Autentica o usuário e retorna o JWT.
 > O `token` expira em **1 dia**. O `creator_user_id` é injetado automaticamente pelo back-end via token — o front-end não precisa enviá-lo.
 
 **Erros:**
-| Status | Mensagem |
-|---|---|
-| `400` | `"E-mail ou senha inválidos"` |
-| `429` | `"Muitas tentativas de login neste IP, tente novamente após 15 minutos."` |
+| Status | Mensagem                                                                  |
+| ------ | ------------------------------------------------------------------------- |
+| `400`  | `"E-mail ou senha inválidos"`                                             |
+| `429`  | `"Muitas tentativas de login neste IP, tente novamente após 15 minutos."` |
 
 ---
 
@@ -167,12 +167,12 @@ Retorna a lista de todas as carteiras às quais o usuário autenticado tem acess
 }
 ```
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | UUID | Identificador único da carteira |
-| `name` | string | Nome da carteira |
-| `role` | enum | Papel do usuário (`owner`, `editor` ou `viewer`) |
-| `created_at` | timestamp | Data de criação da carteira |
+| Campo        | Tipo      | Descrição                                        |
+| ------------ | --------- | ------------------------------------------------ |
+| `id`         | UUID      | Identificador único da carteira                  |
+| `name`       | string    | Nome da carteira                                 |
+| `role`       | enum      | Papel do usuário (`owner`, `editor` ou `viewer`) |
+| `created_at` | timestamp | Data de criação da carteira                      |
 
 ---
 
@@ -219,9 +219,9 @@ Renomeia uma carteira existente.
 ```
 
 **Erros:**
-| Status | Mensagem |
-|---|---|
-| `400` | `"Carteira inexistente"` / `"Usuário sem permissão para edição."` |
+| Status | Mensagem                                                          |
+| ------ | ----------------------------------------------------------------- |
+| `400`  | `"Carteira inexistente"` / `"Usuário sem permissão para edição."` |
 
 ---
 
@@ -249,11 +249,11 @@ Exclui uma carteira.
 Lista todas as contas ou busca uma específica via query string.
 
 **Query Params (todos opcionais):**
-| Param | Tipo | Descrição |
-|---|---|---|
-| `display_id` | número inteiro | ID simplificado da conta |
-| `bank_name` | string | Nome do banco |
-| `wallet_id` | UUID | ID da carteira (opcional, já injetado) |
+| Param        | Tipo           | Descrição                              |
+| ------------ | -------------- | -------------------------------------- |
+| `display_id` | número inteiro | ID simplificado da conta               |
+| `bank_name`  | string         | Nome do banco                          |
+| `wallet_id`  | UUID           | ID da carteira (opcional, já injetado) |
 
 - Sem query params → retorna **array** com todas as contas da carteira
 - Com qualquer query param → retorna **objeto `{ item }`** com a conta encontrada
@@ -303,11 +303,11 @@ Cria uma nova conta bancária.
 ```
 
 **Regras:**
-| Campo | Tipo | Obrigatório | Padrão |
-|---|---|---|---|
-| `bank_name` | string, mín. 2 chars | ✅ | — |
-| `balance` | número | ❌ | `0` |
-| `allow_negative_balance` | boolean | ❌ | `false` |
+| Campo                    | Tipo                 | Obrigatório | Padrão  |
+| ------------------------ | -------------------- | ----------- | ------- |
+| `bank_name`              | string, mín. 2 chars | ✅           | —       |
+| `balance`                | número               | ❌           | `0`     |
+| `allow_negative_balance` | boolean              | ❌           | `false` |
 
 **Resposta `201`:**
 ```json
@@ -364,11 +364,11 @@ Remove uma conta bancária.
 Lista ou busca categorias da carteira ativa.
 
 **Query Params (opcionais):**
-| Param | Tipo | Valores aceitos |
-|---|---|---|
-| `display_id` | número | — |
-| `name` | string | — |
-| `type` | string | `"incomings"` ou `"expenses"` |
+| Param        | Tipo   | Valores aceitos               |
+| ------------ | ------ | ----------------------------- |
+| `display_id` | número | —                             |
+| `name`       | string | —                             |
+| `type`       | string | `"incomings"` ou `"expenses"` |
 
 **Resposta sem filtros `200` — array:**
 ```json
@@ -411,10 +411,10 @@ Cria uma categoria.
 }
 ```
 
-| Campo | Tipo | Obrigatório | Valores |
-|---|---|---|---|
-| `name` | string, mín. 2 | ✅ | qualquer |
-| `type` | enum | ✅ | `"incomings"` / `"expenses"` |
+| Campo  | Tipo           | Obrigatório | Valores                      |
+| ------ | -------------- | ----------- | ---------------------------- |
+| `name` | string, mín. 2 | ✅           | qualquer                     |
+| `type` | enum           | ✅           | `"incomings"` / `"expenses"` |
 
 ---
 
@@ -442,11 +442,11 @@ Representa pagadores/recebedores nas transações.
 
 ### `GET /api/counterpartie`
 **Query Params (opcionais):**
-| Param | Tipo | Valores |
-|---|---|---|
-| `display_id` | número | — |
-| `name` | string | — |
-| `type` | enum | `"payer"` / `"payee"` |
+| Param        | Tipo   | Valores               |
+| ------------ | ------ | --------------------- |
+| `display_id` | número | —                     |
+| `name`       | string | —                     |
+| `type`       | enum   | `"payer"` / `"payee"` |
 
 **Resposta sem filtros `200` — array:**
 ```json
@@ -488,10 +488,10 @@ Representa pagadores/recebedores nas transações.
 }
 ```
 
-| Campo | Tipo | Obrigatório | Valores |
-|---|---|---|---|
-| `name` | string, mín. 2 | ✅ | — |
-| `type` | enum | ✅ | `"payer"` / `"payee"` |
+| Campo  | Tipo           | Obrigatório | Valores               |
+| ------ | -------------- | ----------- | --------------------- |
+| `name` | string, mín. 2 | ✅           | —                     |
+| `type` | enum           | ✅           | `"payer"` / `"payee"` |
 
 ---
 
@@ -507,13 +507,13 @@ Representa pagadores/recebedores nas transações.
 
 ### `GET /api/pay-method`
 **Query Params (opcionais):**
-| Param | Tipo |
-|---|---|
-| `display_id` | número |
-| `name` | string |
-| `bank_account_id` | UUID |
-| `due_day` | número inteiro |
-| `closing_day` | número inteiro |
+| Param             | Tipo           |
+| ----------------- | -------------- |
+| `display_id`      | número         |
+| `name`            | string         |
+| `bank_account_id` | UUID           |
+| `due_day`         | número inteiro |
+| `closing_day`     | número inteiro |
 
 **Resposta sem filtros `200` — array:**
 ```json
@@ -581,15 +581,15 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 }
 ```
 
-| Campo | Tipo | Obrigatório | Notas |
-|---|---|---|---|
-| `name` | string, mín. 2 | ✅ | — |
-| `credit_card` | boolean | ❌ | Padrão `false` |
-| `bank_account_id` | UUID | ⚠️ | Obrigatório se `credit_card: true` |
-| `due_day` | número inteiro | ⚠️ | Obrigatório se `credit_card: true` |
-| `closing_day` | número inteiro | ⚠️ | Obrigatório se `credit_card: true` |
-| `last_four_digits` | string, mín. 4 dígitos numéricos | ⚠️ | Obrigatório se `credit_card: true` |
-| `credit_limit` | número | ⚠️ | Obrigatório se `credit_card: true` |
+| Campo              | Tipo                             | Obrigatório | Notas                              |
+| ------------------ | -------------------------------- | ----------- | ---------------------------------- |
+| `name`             | string, mín. 2                   | ✅           | —                                  |
+| `credit_card`      | boolean                          | ❌           | Padrão `false`                     |
+| `bank_account_id`  | UUID                             | ⚠️           | Obrigatório se `credit_card: true` |
+| `due_day`          | número inteiro                   | ⚠️           | Obrigatório se `credit_card: true` |
+| `closing_day`      | número inteiro                   | ⚠️           | Obrigatório se `credit_card: true` |
+| `last_four_digits` | string, mín. 4 dígitos numéricos | ⚠️           | Obrigatório se `credit_card: true` |
+| `credit_limit`     | número                           | ⚠️           | Obrigatório se `credit_card: true` |
 
 > [!WARNING]
 > Se `credit_card: true` e qualquer um dos 5 campos obrigatórios estiver ausente, a API retorna `422` com a mensagem: *"Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão"*
@@ -613,20 +613,20 @@ Esta é a rota mais complexa da API. Suporta 3 tipos de transação com regras d
 
 ### Tipos de Transação
 
-| `type` | Descrição |
-|---|---|
-| `"incomings"` | Entrada de dinheiro |
-| `"expenses"` | Saída de dinheiro |
+| `type`        | Descrição                  |
+| ------------- | -------------------------- |
+| `"incomings"` | Entrada de dinheiro        |
+| `"expenses"`  | Saída de dinheiro          |
 | `"transfers"` | Transferência entre contas |
 
 ### Status Disponíveis
 
-| `status` | Descrição |
-|---|---|
-| `"pending"` | Lançado, mas não pago |
+| `status`      | Descrição                |
+| ------------- | ------------------------ |
+| `"pending"`   | Lançado, mas não pago    |
 | `"completed"` | Pago — movimenta o saldo |
-| `"cancelled"` | Cancelado |
-| `"expired"` | Vencido |
+| `"cancelled"` | Cancelado                |
+| `"expired"`   | Vencido                  |
 
 > [!NOTE]
 > Se `payment_date` for enviado na criação, o status automaticamente vira `"completed"`.
@@ -646,30 +646,32 @@ GET /api/transaction?type=expenses&status=pending&order_by=due_date&order_dir=AS
 
 **Query Params disponíveis (todos opcionais):**
 
-| Param | Tipo | Aceita múltiplos |
-|---|---|---|
-| `type` | enum | ✅ |
-| `status` | enum | ✅ |
-| `bank_account_id` | UUID | ✅ |
-| `category_id` | UUID | ✅ |
-| `pay_methods_id` | UUID | ✅ |
-| `counterparty_id` | UUID | ✅ |
-| `creator_user_id` | UUID | ✅ |
-| `value` | número positivo | ❌ |
-| `value_min` | número positivo | ❌ |
-| `value_max` | número positivo | ❌ |
-| `due_date` | data `YYYY-MM-DD` | ❌ |
-| `due_date_from` | data `YYYY-MM-DD` | ❌ |
-| `due_date_to` | data `YYYY-MM-DD` | ❌ |
-| `purchase_date_from` | data `YYYY-MM-DD` | ❌ |
-| `purchase_date_to` | data `YYYY-MM-DD` | ❌ |
-| `created_at_from` | data `YYYY-MM-DD` | ❌ |
-| `created_at_to` | data `YYYY-MM-DD` | ❌ |
-| `is_recurrent` | `"true"` / `"false"` | ❌ |
-| `first_this_month` | `"true"` / `"false"` | ❌ |
-| `description` | string | ❌ |
-| `order_by` | enum (ver abaixo) | ❌ |
-| `order_dir` | `"ASC"` / `"DESC"` | ❌ |
+| Param                | Tipo                                          | Aceita múltiplos |
+| -------------------- | --------------------------------------------- | ---------------- |
+| `type`               | enum                                          | ✅                |
+| `status`             | enum                                          | ✅                |
+| `bank_account_id`    | UUID                                          | ✅                |
+| `category_id`        | UUID                                          | ✅                |
+| `pay_methods_id`     | UUID                                          | ✅                |
+| `counterparty_id`    | UUID                                          | ✅                |
+| `creator_user_id`    | UUID                                          | ✅                |
+| `value`              | número positivo                               | ❌                |
+| `value_min`          | número positivo                               | ❌                |
+| `value_max`          | número positivo                               | ❌                |
+| `due_date`           | data `YYYY-MM-DD`                             | ❌                |
+| `due_date_from`      | data `YYYY-MM-DD`                             | ❌                |
+| `due_date_to`        | data `YYYY-MM-DD`                             | ❌                |
+| `purchase_date_from` | data `YYYY-MM-DD`                             | ❌                |
+| `purchase_date_to`   | data `YYYY-MM-DD`                             | ❌                |
+| `created_at_from`    | data `YYYY-MM-DD`                             | ❌                |
+| `created_at_to`      | data `YYYY-MM-DD`                             | ❌                |
+| `is_recurrent`       | `"true"` / `"false"`                          | ❌                |
+| `first_this_month`   | `"true"` / `"false"`                          | ❌                |
+| `description`        | string                                        | ❌                |
+| `order_by`           | enum (ver abaixo)                             | ❌                |
+| `order_dir`          | `"ASC"` / `"DESC"`                            | ❌                |
+| `page`               | número positivo (default: `1`)                | ❌                |
+| `limit`              | número inteiro entre 20 e 100 (default: `20`) | ❌                |
 
 **Valores aceitos em `order_by`:**
 `id`, `value`, `description`, `type`, `status`, `due_date`, `payment_date`, `purchase_date`, `transfers_id`, `invoice_id`, `current_installment`, `created_at`, `bank_account_name`, `category_name`, `pay_method_name`, `counterparty_name`, `creator_user_name`
@@ -682,6 +684,11 @@ GET /api/transaction?type=expenses&type=incomings&status=pending&due_date_from=2
 **Exemplo buscando por múltiplas contas:**
 ```
 GET /api/transaction?bank_account_id=uuid-1&bank_account_id=uuid-2&status=completed
+```
+
+**Exemplo com paginação:**
+```
+GET /api/transaction?page=1&limit=20
 ```
 
 **Resposta `200` — com resultados:**
@@ -707,7 +714,14 @@ GET /api/transaction?bank_account_id=uuid-1&bank_account_id=uuid-2&status=comple
       "creator_user_name": "João Silva",
       "created_at": "2024-08-01T00:00:00.000Z"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total_items": 45,
+    "total_pages": 3,
+    "has_more": true
+  }
 }
 ```
 
@@ -718,6 +732,13 @@ GET /api/transaction?bank_account_id=uuid-1&bank_account_id=uuid-2&status=comple
 ```json
 {
   "rows": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total_items": 0,
+    "total_pages": 0,
+    "has_more": false
+  },
   "message": "Nenhuma transação localizada para os filtros informados"
 }
 ```
@@ -744,25 +765,25 @@ Cria uma transação. Regras variam conforme o tipo.
 
 **Todos os campos disponíveis:**
 
-| Campo | Tipo | Obrigatório | Notas |
-|---|---|---|---|
-| `bank_account_id` | UUID | ✅ | Conta de origem |
-| `destiny_bank_account_id` | UUID | ⚠️ | Obrigatório se `type: "transfers"` |
-| `category_id` | UUID | ✅ | — |
-| `pay_methods_id` | UUID | ✅ | — |
-| `counterparty_id` | UUID | ✅ | — |
-| `creator_user_id` | UUID | ❌ | Injetado automaticamente pelo back-end |
-| `type` | enum | ✅ | `"incomings"`, `"expenses"`, `"transfers"` |
-| `status` | enum | ✅ | `"pending"`, `"completed"`, `"cancelled"`, `"expired"` |
-| `value` | número positivo | ✅ | Maior que zero |
-| `description` | string, mín. 3 | ✅ | — |
-| `due_date` | data (`YYYY-MM-DD`) | ⚠️ | Obrigatório para `expenses` sem cartão |
-| `payment_date` | data ≤ hoje | ❌ | Define status como `completed` automaticamente |
-| `purchase_date` | data ≤ hoje | ❌ | Padrão: data atual |
-| `is_recurrent` | boolean | ❌ | Se true, cria parcelas recorrentes |
-| `installments_number` | número inteiro positivo | ❌ | Qtd. de parcelas |
-| `due_day` | número 1–31 ou string | ❌ | Dia de vencimento recorrente |
-| `first_this_month` | boolean | ❌ | 1ª parcela no mês atual |
+| Campo                     | Tipo                    | Obrigatório | Notas                                                  |
+| ------------------------- | ----------------------- | ----------- | ------------------------------------------------------ |
+| `bank_account_id`         | UUID                    | ✅           | Conta de origem                                        |
+| `destiny_bank_account_id` | UUID                    | ⚠️           | Obrigatório se `type: "transfers"`                     |
+| `category_id`             | UUID                    | ✅           | —                                                      |
+| `pay_methods_id`          | UUID                    | ✅           | —                                                      |
+| `counterparty_id`         | UUID                    | ✅           | —                                                      |
+| `creator_user_id`         | UUID                    | ❌           | Injetado automaticamente pelo back-end                 |
+| `type`                    | enum                    | ✅           | `"incomings"`, `"expenses"`, `"transfers"`             |
+| `status`                  | enum                    | ✅           | `"pending"`, `"completed"`, `"cancelled"`, `"expired"` |
+| `value`                   | número positivo         | ✅           | Maior que zero                                         |
+| `description`             | string, mín. 3          | ✅           | —                                                      |
+| `due_date`                | data (`YYYY-MM-DD`)     | ⚠️           | Obrigatório para `expenses` sem cartão                 |
+| `payment_date`            | data ≤ hoje             | ❌           | Define status como `completed` automaticamente         |
+| `purchase_date`           | data ≤ hoje             | ❌           | Padrão: data atual                                     |
+| `is_recurrent`            | boolean                 | ❌           | Se true, cria parcelas recorrentes                     |
+| `installments_number`     | número inteiro positivo | ❌           | Qtd. de parcelas                                       |
+| `due_day`                 | número 1–31 ou string   | ❌           | Dia de vencimento recorrente                           |
+| `first_this_month`        | boolean                 | ❌           | 1ª parcela no mês atual                                |
 
 ---
 
@@ -881,13 +902,13 @@ Cria uma transação. Regras variam conforme o tipo.
 ```
 
 **Erros de negócio:**
-| Status | Situação |
-|---|---|
-| `400` | Conta de destino ausente em transferência |
-| `400` | Conta origem = conta destino na transferência |
-| `400` | `due_date` ausente em despesa sem cartão |
-| `422` | Saldo insuficiente (conta que não permite negativo) |
-| `422` | Cartão de crédito usado como forma de entrada recorrente |
+| Status | Situação                                                 |
+| ------ | -------------------------------------------------------- |
+| `400`  | Conta de destino ausente em transferência                |
+| `400`  | Conta origem = conta destino na transferência            |
+| `400`  | `due_date` ausente em despesa sem cartão                 |
+| `422`  | Saldo insuficiente (conta que não permite negativo)      |
+| `422`  | Cartão de crédito usado como forma de entrada recorrente |
 
 ---
 
@@ -905,8 +926,8 @@ Atualiza uma transação. `:id` = UUID da transação.
 }
 ```
 
-| Campo especial | Tipo | Notas |
-|---|---|---|
+| Campo especial     | Tipo    | Notas                                                  |
+| ------------------ | ------- | ------------------------------------------------------ |
 | `all_installments` | boolean | Se `true`, aplica update em todas as parcelas do grupo |
 
 > [!WARNING]
@@ -928,10 +949,10 @@ Remove uma transação. `:id` = UUID da transação.
 }
 ```
 
-| Campo | Tipo | Notas |
-|---|---|---|
-| `all_installments` | boolean | Se `true`, deleta todas as parcelas do grupo |
-| `redistribute` | boolean | Se `true` (cartão de crédito), redistribui o valor entre as parcelas restantes |
+| Campo              | Tipo    | Notas                                                                          |
+| ------------------ | ------- | ------------------------------------------------------------------------------ |
+| `all_installments` | boolean | Se `true`, deleta todas as parcelas do grupo                                   |
+| `redistribute`     | boolean | Se `true` (cartão de crédito), redistribui o valor entre as parcelas restantes |
 
 > [!NOTE]
 > Se a transação era `completed`, o saldo da conta bancária é **revertido automaticamente** na exclusão.
@@ -945,12 +966,12 @@ Remove uma transação. `:id` = UUID da transação.
 
 ### `GET /api/investiment-asset`
 **Query Params (opcionais):**
-| Param | Tipo |
-|---|---|
-| `display_id` | número |
-| `name` | string |
-| `bank_account_id` | UUID |
-| `due_date` | data |
+| Param             | Tipo   |
+| ----------------- | ------ |
+| `display_id`      | número |
+| `name`            | string |
+| `bank_account_id` | UUID   |
+| `due_date`        | data   |
 
 **Resposta sem filtros `200` — array:**
 ```json
@@ -995,11 +1016,11 @@ Remove uma transação. `:id` = UUID da transação.
 }
 ```
 
-| Campo | Tipo | Obrigatório |
-|---|---|---|
-| `name` | string, mín. 2 | ✅ |
-| `bank_account_id` | UUID | ✅ |
-| `due_date` | data | ❌ |
+| Campo             | Tipo           | Obrigatório |
+| ----------------- | -------------- | ----------- |
+| `name`            | string, mín. 2 | ✅           |
+| `bank_account_id` | UUID           | ✅           |
+| `due_date`        | data           | ❌           |
 
 ---
 
@@ -1025,10 +1046,10 @@ Remove uma transação. `:id` = UUID da transação.
 Resumo financeiro da carteira: entradas, saídas, pendências e projeção do mês.
 
 **Query Params (opcionais):**
-| Param | Tipo | Formato |
-|---|---|---|
+| Param       | Tipo   | Formato      |
+| ----------- | ------ | ------------ |
 | `startDate` | string | `YYYY-MM-DD` |
-| `endDate` | string | `YYYY-MM-DD` |
+| `endDate`   | string | `YYYY-MM-DD` |
 
 **Resposta `200`:**
 ```json
@@ -1042,14 +1063,14 @@ Resumo financeiro da carteira: entradas, saídas, pendências e projeção do m�
 }
 ```
 
-| Campo | Descrição |
-|---|---|
-| `completedIncomes` | Total de entradas pagas no período |
-| `completedExpenses` | Total de despesas pagas no período |
-| `pendingIncomes` | Total de entradas pendentes no período |
-| `pendingExpenses` | Total de despesas pendentes no período |
-| `totalBalance` | Saldo total somado de todas as contas |
-| `monthForecast` | Projeção: `totalBalance + pendingIncomes - pendingExpenses` |
+| Campo               | Descrição                                                   |
+| ------------------- | ----------------------------------------------------------- |
+| `completedIncomes`  | Total de entradas pagas no período                          |
+| `completedExpenses` | Total de despesas pagas no período                          |
+| `pendingIncomes`    | Total de entradas pendentes no período                      |
+| `pendingExpenses`   | Total de despesas pendentes no período                      |
+| `totalBalance`      | Saldo total somado de todas as contas                       |
+| `monthForecast`     | Projeção: `totalBalance + pendingIncomes - pendingExpenses` |
 
 ---
 
@@ -1081,10 +1102,10 @@ Saldo individual de cada conta bancária e o total consolidado. Não aceita filt
 Despesas pagas agrupadas por categoria, com valor total e percentual sobre o total geral.
 
 **Query Params (opcionais):**
-| Param | Tipo | Formato |
-|---|---|---|
+| Param       | Tipo   | Formato      |
+| ----------- | ------ | ------------ |
 | `startDate` | string | `YYYY-MM-DD` |
-| `endDate` | string | `YYYY-MM-DD` |
+| `endDate`   | string | `YYYY-MM-DD` |
 
 **Resposta `200`:**
 ```json
@@ -1115,8 +1136,8 @@ Despesas pagas agrupadas por categoria, com valor total e percentual sobre o tot
 Comparativo mensal de entradas vs. despesas para o ano inteiro, mais um resumo do mês atual.
 
 **Query Params (opcionais):**
-| Param | Tipo | Padrão |
-|---|---|---|
+| Param  | Tipo           | Padrão    |
+| ------ | -------------- | --------- |
 | `year` | número inteiro | Ano atual |
 
 **Resposta `200`:**
@@ -1138,11 +1159,11 @@ Comparativo mensal de entradas vs. despesas para o ano inteiro, mais um resumo d
 }
 ```
 
-| Campo | Descrição |
-|---|---|
-| `monthly` | Dados do **mês atual** com taxa de poupança |
-| `yearly` | Array com os 12 meses (1–12), mesmo que zerados |
-| `savingsRatePercentage` | `((income - expense) / income) * 100` |
+| Campo                   | Descrição                                       |
+| ----------------------- | ----------------------------------------------- |
+| `monthly`               | Dados do **mês atual** com taxa de poupança     |
+| `yearly`                | Array com os 12 meses (1–12), mesmo que zerados |
+| `savingsRatePercentage` | `((income - expense) / income) * 100`           |
 
 ---
 
@@ -1150,8 +1171,8 @@ Comparativo mensal de entradas vs. despesas para o ano inteiro, mais um resumo d
 Resumo de todos os cartões de crédito: limite, limite usado, disponível e fatura do mês corrente.
 
 **Query Params (opcionais):**
-| Param | Tipo | Valores |
-|---|---|---|
+| Param                 | Tipo   | Valores              |
+| --------------------- | ------ | -------------------- |
 | `includeTransactions` | string | `"true"` / `"false"` |
 
 **Resposta `200` (sem transações):**
@@ -1222,10 +1243,10 @@ Lista de transações vencidas ou com status `expired`, ordenadas da mais antiga
 }
 ```
 
-| Campo | Descrição |
-|---|---|
-| `total_overdue` | Quantidade de itens vencidos |
-| `days_overdue` | Dias em atraso em relação à data atual |
+| Campo           | Descrição                              |
+| --------------- | -------------------------------------- |
+| `total_overdue` | Quantidade de itens vencidos           |
+| `days_overdue`  | Dias em atraso em relação à data atual |
 
 ---
 
@@ -1233,9 +1254,9 @@ Lista de transações vencidas ou com status `expired`, ordenadas da mais antiga
 Últimas transações da carteira, ordenadas da mais recente.
 
 **Query Params:**
-| Param | Tipo | Obrigatório | Notas |
-|---|---|---|---|
-| `limit` | número inteiro positivo | ✅ | Quantidade de transações a retornar |
+| Param   | Tipo                    | Obrigatório | Notas                               |
+| ------- | ----------------------- | ----------- | ----------------------------------- |
+| `limit` | número inteiro positivo | ✅           | Quantidade de transações a retornar |
 
 **Resposta `200`:**
 ```json
@@ -1265,15 +1286,15 @@ Lista de transações vencidas ou com status `expired`, ordenadas da mais antiga
 
 
 
-| Status | Significado |
-|---|---|
-| `400` | Erro de validação ou regra de negócio |
-| `401` | Token ausente ou inválido |
-| `403` | Sem permissão para acessar o recurso |
-| `404` | Recurso não encontrado |
-| `422` | Violação de regra de negócio (ex: saldo insuficiente) |
-| `429` | Muitas requisições (rate limit) |
-| `500` | Erro interno do servidor |
+| Status | Significado                                           |
+| ------ | ----------------------------------------------------- |
+| `400`  | Erro de validação ou regra de negócio                 |
+| `401`  | Token ausente ou inválido                             |
+| `403`  | Sem permissão para acessar o recurso                  |
+| `404`  | Recurso não encontrado                                |
+| `422`  | Violação de regra de negócio (ex: saldo insuficiente) |
+| `429`  | Muitas requisições (rate limit)                       |
+| `500`  | Erro interno do servidor                              |
 
 **Formato padrão de erro:**
 ```json

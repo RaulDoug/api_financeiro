@@ -122,5 +122,7 @@ export const findSchema = z.object({
       ], 
       { message: 'Tipo inválido. Deve ser algum dos nomes de colunas'}).optional(),
     order_dir: z.enum(['ASC', 'DESC'], { message: "Tipo inválido. Deve ser 'ASC' ou 'DESC'" }).optional(),
+    page: z.coerce.number().positive('O valor deve ser maior que zero').optional(),
+    limit: z.coerce.number().int('Deve ser um número inteiro').min(20, 'O valor mínimo é 20').max(100, 'O valor máximo é 100').optional(),
   }),
 });

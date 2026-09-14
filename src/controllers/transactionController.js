@@ -179,9 +179,13 @@ export default class TransactionController {
         return res.status(200).json({
           message: 'Nenhuma transação encontrada com os parâmetros fornecidos',
           rows: findItem.rows,
+          pagination: findItem.pagination,
         });
       } else {
-        return res.status(200).json({ rows: findItem.rows });
+        return res.status(200).json({ 
+          rows: findItem.rows,
+          pagination: findItem.pagination, 
+        });
       }
     } catch (error) {
       console.log(error);

@@ -706,7 +706,11 @@ export default class TransactionServices {
   }
 
   async find(data) {
-    const { user_id, wallet_id, order_by, order_dir, ...filterFields } =  data;
+    const { user_id, wallet_id, order_by, order_dir, page = 1, limit = 20, ...filterFields } =  data;
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Math.min(100, Number(limit) || 20)); // Limite máximo 100
+    const offset = (pageNumber - 1) * limitNumber;
 
     // Validação campos obrigatórios
     if (!user_id || !wallet_id) {
@@ -1045,6 +1049,23 @@ export default class TransactionServices {
     const client = await pool.connect();
 
     try {
+      // Contagem total da lsita de transações
+      const countQuery = `
+        SELECT COUNT(*) AS total
+        FROM transactions t
+        WHERE ${whereClauses.join(' AND ')}
+      `;
+
+      const countResult = await client.query(countQuery, values);
+      const totalItems = parseInt(countResult.rows[0]?.total || 0, 10);
+
+      placeholderCounter += 1;
+      const limitPlaceholder = `$${placeholderCounter}`;
+      values.push(limitNumber);
+      placeholderCounter += 1;
+      const offsetPlaceholder = `$${placeholderCounter}`;
+      values.push(offset);
+
       const queryText = `
         SELECT 
           t.id,
@@ -1071,16 +1092,27 @@ export default class TransactionServices {
         LEFT JOIN counterparties cp ON cp.id = t.counterparty_id
         LEFT JOIN users u ON u.id = t.creator_user_id
         WHERE ${whereClauses.join(' AND ')}
-        ${orderByClauses};
+        ${orderByClauses}
+        LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder};
       `;
-      // console.log('Query Text: ' + queryText);
-      // console.log('Value: ' + values);
 
-      const result = await pool.query(queryText, values);
+      const result = await client.query(queryText, values);
+
+      // 3. Monta o objeto de metadados da paginação
+      const totalPages = Math.ceil(totalItems / limitNumber);
+      const hasMore = pageNumber < totalPages;
+      const pagination = {
+        page: pageNumber,
+        limit: limitNumber,
+        total_items: totalItems,
+        total_pages: totalPages,
+        has_more: hasMore,
+      };
 
       if (filterFields.description !== undefined && result.rows.length === 0) {
         return {
           rows: [],
+          pagination,
           message: 'Nenhuma transação encontrada com a descrição fornecida',
         };
       }
@@ -1088,11 +1120,12 @@ export default class TransactionServices {
       if (result.rows.length === 0) {
         return { 
           rows: [],
+          pagination,
           message: 'Nenhuma transação localizada para os filtros informados',
         };
       }
 
-      return { rows: result.rows };
+      return { rows: result.rows, pagination };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
