@@ -216,7 +216,7 @@ export default class DashboardService {
   }
 
   async getCreditCardInvoicesSummary(walletId, options = {}) {
-    const { startDate, endDate } = resolveDateRange();
+    const { startDate, endDate } = resolveDateRange(options);
 
     const creditCardArray = await pool.query(
       `

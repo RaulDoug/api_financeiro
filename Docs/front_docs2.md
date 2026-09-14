@@ -646,7 +646,9 @@ A tabela `categories` tem campo `type` que é `incomings` ou `expenses`. O front
 
 **Endpoint:** `GET /api/dashboard-report/credit-card-summary`
 
-**Query param:** `includeTransactions=true` para ver as transações da fatura.
+**Query params (opcionais):**
+- `includeTransactions=true` para ver as transações da fatura.
+- `startDate` e `endDate` (`AAAA-MM-DD`): intervalo de datas de vencimento da fatura (padrão: mês corrente).
 
 **Resposta com transações:**
 ```json

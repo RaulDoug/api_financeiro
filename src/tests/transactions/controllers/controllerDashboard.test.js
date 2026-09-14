@@ -181,6 +181,25 @@ describe('Dashboard Controller — /api/dashboard-report', () => {
         { includeTransactions: true },
       );
     });
+
+    test('[CRD-03] Deve repassar startDate e endDate para o serviço quando fornecidos na query', async () => {
+      DashboardService.prototype.getCreditCardInvoicesSummary.mockResolvedValueOnce([]);
+
+      const response = await request(app)
+        .get('/api/dashboard-report/credit-card-summary')
+        .set('Authorization', authHeader)
+        .set('x-wallet-id', walletId)
+        .query({ startDate: '2026-07-01', endDate: '2026-07-31' });
+
+      expect(response.status).toBe(200);
+      expect(DashboardService.prototype.getCreditCardInvoicesSummary).toHaveBeenCalledWith(
+        walletId,
+        expect.objectContaining({
+          startDate: '2026-07-01',
+          endDate: '2026-07-31',
+        }),
+      );
+    });
   });
 
   describe('GET /api/dashboard-report/overdue-alerts', () => {

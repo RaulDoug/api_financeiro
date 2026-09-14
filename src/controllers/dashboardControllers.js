@@ -99,7 +99,7 @@ export default class DashboardController {
   getCreditCardSummary = async (req, res) => {
     try {
       const walletId = req.activeWalletId;
-      const { includeTransactions } = req.query;
+      const { includeTransactions, startDate, endDate } = req.query;
 
       if (
         includeTransactions !== undefined &&
@@ -111,7 +111,7 @@ export default class DashboardController {
 
       const includeTransactionsToUse = includeTransactions === 'true';
 
-      const options = { includeTransactions: includeTransactionsToUse };
+      const options = { includeTransactions: includeTransactionsToUse, startDate, endDate };
 
       const creditCardSummary = await dashboardService.getCreditCardInvoicesSummary(walletId, options);
 

@@ -904,6 +904,48 @@ describe('DashboardService — Testes de Relatórios do Dashboard', () => {
         expect(Number(result[0].current_invoice_total)).toBe(300.00);
       });
 
+      test('SUCESSO - Filtro por período customizado: Deve somar despesas com vencimento entre startDate e endDate', async () => {
+        // Compra com vencimento em agosto (closing_day = 2, due_day = 9)
+        await createFixture({
+          type: 'expenses',
+          status: 'pending',
+          pay_methods_id: testData.payMethodCreditCardId,
+          value: 400.00,
+          purchase_date: '2026-08-01',
+        });
+        // Compra com vencimento em setembro
+        await createFixture({
+          type: 'expenses',
+          status: 'pending',
+          pay_methods_id: testData.payMethodCreditCardId,
+          value: 200.00,
+          purchase_date: '2026-09-01',
+        });
+
+        const result = await dashboardService.getCreditCardInvoicesSummary(testData.walletId, {
+          startDate: '2026-08-01',
+          endDate: '2026-08-31',
+        });
+
+        expect(Number(result[0].current_invoice_total)).toBe(400.00);
+      });
+
+      test('FALHA - Deve lançar erro quando startDate for posterior a endDate ou formato for inválido', async () => {
+        await expect(
+          dashboardService.getCreditCardInvoicesSummary(testData.walletId, {
+            startDate: '2026-09-30',
+            endDate: '2026-09-01',
+          }),
+        ).rejects.toThrow('Data inicial não pode ser maior que a data final');
+
+        await expect(
+          dashboardService.getCreditCardInvoicesSummary(testData.walletId, {
+            startDate: 'data-invalida',
+            endDate: '2026-09-30',
+          }),
+        ).rejects.toThrow('Data inicial ou final inválida');
+      });
+
       test('SUCESSO - Modo Detalhado: Se includeTransactions for true, deve incluir lista de lançamentos da fatura', async () => {
         await createFixture({
           type: 'expenses',

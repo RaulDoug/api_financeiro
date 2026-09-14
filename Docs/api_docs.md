@@ -1168,12 +1168,14 @@ Comparativo mensal de entradas vs. despesas para o ano inteiro, mais um resumo d
 ---
 
 ### `GET /api/dashboard-report/credit-card-summary`
-Resumo de todos os cartões de crédito: limite, limite usado, disponível e fatura do mês corrente.
+Resumo de todos os cartões de crédito: limite, limite usado, disponível e fatura do período (por padrão, mês corrente).
 
 **Query Params (opcionais):**
-| Param                 | Tipo   | Valores              |
-| --------------------- | ------ | -------------------- |
-| `includeTransactions` | string | `"true"` / `"false"` |
+| Param                 | Tipo   | Valores / Formato    | Descrição                                                                |
+| --------------------- | ------ | -------------------- | ------------------------------------------------------------------------ |
+| `includeTransactions` | string | `"true"` / `"false"` | Inclui os lançamentos detalhados da fatura no retorno                    |
+| `startDate`           | string | `"AAAA-MM-DD"`       | Data inicial do período da fatura (padrão: primeiro dia do mês corrente) |
+| `endDate`             | string | `"AAAA-MM-DD"`       | Data final do período da fatura (padrão: último dia do mês corrente)     |
 
 **Resposta `200` (sem transações):**
 ```json
