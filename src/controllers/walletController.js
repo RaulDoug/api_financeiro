@@ -76,4 +76,17 @@ export default class WalletController {
       return res.status(500).json({ message: 'Error interno do servidor' });
     }
   };
+
+  walletFind = async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const walletsList = await walletService.walletFind(userId);
+
+      return res.status(200).json({ walletsList });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: 'Erro interno do servidor' });
+    }
+  };
 }

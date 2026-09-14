@@ -30,6 +30,7 @@ x-wallet-id: <uuid-da-carteira>
 |---|---|---|---|---|
 | Auth | POST | `/api/auth/register` | ❌ | ❌ |
 | Auth | POST | `/api/auth/login` | ❌ | ❌ |
+| Wallet | GET | `/api/wallet` | ✅ | ❌ |
 | Wallet | POST | `/api/wallet/register` | ✅ | ❌ |
 | Wallet | PATCH | `/api/wallet/update/:id` | ✅ | ❌ |
 | Wallet | DELETE | `/api/wallet/delete/:id` | ✅ | ❌ |
@@ -148,6 +149,32 @@ Autentica o usuário e retorna o JWT.
 
 > [!NOTE]
 > Rotas de carteira exigem apenas o JWT. **Não** precisam de `x-wallet-id`.
+
+### `GET /api/wallet`
+Retorna a lista de todas as carteiras às quais o usuário autenticado tem acesso, incluindo seu papel (`role`).
+
+**Resposta `200`:**
+```json
+{
+  "walletsList": [
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "name": "Minha Carteira",
+      "role": "owner",
+      "created_at": "2024-08-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID | Identificador único da carteira |
+| `name` | string | Nome da carteira |
+| `role` | enum | Papel do usuário (`owner`, `editor` ou `viewer`) |
+| `created_at` | timestamp | Data de criação da carteira |
+
+---
 
 ### `POST /api/wallet/register`
 Cria uma nova carteira vinculada ao usuário autenticado.

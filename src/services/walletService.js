@@ -92,4 +92,25 @@ export default class WalletService {
     return response.rows[0];
   }
 
+  async walletFind(userId) {
+    try {
+      const query = `
+        SELECT 
+          w.id, 
+          w.name, 
+          uw.role, 
+          w.created_at
+        FROM wallets w
+        JOIN users_wallets uw ON w.id = uw.wallet_id
+        WHERE uw.user_id = $1;
+      `;
+
+      const result = await pool.query(query, [userId]);
+
+      return result.rows;
+    } catch (error) {
+      throw error;
+    } 
+  }
+
 }
