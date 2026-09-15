@@ -852,6 +852,37 @@ describe('DashboardService — Testes de Relatórios do Dashboard', () => {
         expect(aug).toBeDefined();
         expect(Number(aug.income)).toBe(1200.00);
       });
+
+      test('SUCESSO - Despesas futuras de cartão parcelado com status pending devem constar nos meses seguintes', async () => {
+        // Parcela em Setembro (mês 9)
+        await createFixture({
+          type: 'expenses',
+          status: 'pending',
+          value: 450.00,
+          due_date: '2026-09-15',
+          payment_date: null,
+        });
+
+        // Parcela em Outubro (mês 10)
+        await createFixture({
+          type: 'expenses',
+          status: 'pending',
+          value: 450.00,
+          due_date: '2026-10-15',
+          payment_date: null,
+        });
+
+        const result = await dashboardService.getIncomeVsExpense(testData.walletId, { year: 2026 });
+        const yearly = result?.yearly ?? result;
+
+        const sep = yearly.find(m => m.month === 9);
+        const oct = yearly.find(m => m.month === 10);
+
+        expect(sep).toBeDefined();
+        expect(Number(sep.expense)).toBe(450.00);
+        expect(oct).toBeDefined();
+        expect(Number(oct.expense)).toBe(450.00);
+      });
     });
   });
 

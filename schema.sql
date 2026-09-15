@@ -70,6 +70,8 @@ CREATE TABLE bank_accounts (
   bank_name VARCHAR(255) NOT NULL,
   balance NUMERIC DEFAULT 0,
   allow_negative_balance BOOLEAN DEFAULT false,
+  icon VARCHAR(100),
+  color VARCHAR(20),
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_ba_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT uq_bank_accounts_wallet_display UNIQUE (wallet_id, display_id)
@@ -89,6 +91,8 @@ CREATE TABLE categories (
   wallet_id UUID NOT NULL,
   name VARCHAR(255) NOT NULL,
   type categories_type NOT NULL,
+  icon VARCHAR(100),
+  color VARCHAR(20),
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_c_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
   CONSTRAINT uq_categories_wallet_display UNIQUE (wallet_id, display_id)  
@@ -131,6 +135,8 @@ CREATE TABLE pay_methods (
   closing_day INTEGER,
   last_four_digits NUMERIC,
   credit_limit NUMERIC,
+  icon VARCHAR(100),
+  color VARCHAR(20),
   used_credit_limit NUMERIC DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_pm_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,

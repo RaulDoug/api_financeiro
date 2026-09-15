@@ -28,21 +28,26 @@ export default class TransactionController {
           expenseRow: createItem.expenseRow,
           incomingRow: createItem.incomingRow,
         });
-      } else if (createItem.rows.length > 1) {
+      }
+
+      // Múltiplas parcelas (cartão parcelado ou recorrente)
+      if (createItem.rows && createItem.rows.length > 1) {
         const type = createItem.rows[0].invoice_id !== null ? 'de cartão de crédito' : 'recorrente';
 
         return res.status(201).json({
           message: `Transações ${type} criadas com sucesso!`,
           itens: createItem.rows,
         });
-      } else {
-        const type = createItem.rows[0].type === 'expenses' ? 'saída' : 'entrada';
-
-        return res.status(201).json({
-          message: `Transação de ${type} criada com sucesso!`,
-          item: createItem.rows[0],
-        });
       }
+
+      // Transação única: suporta tanto objeto direto quanto { rows: [item] }
+      const item = createItem.rows ? createItem.rows[0] : createItem;
+      const type = item.type === 'expenses' ? 'saída' : 'entrada';
+
+      return res.status(201).json({
+        message: `Transação de ${type} criada com sucesso!`,
+        item,
+      });
 
       
     } catch (error) {

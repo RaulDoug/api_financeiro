@@ -178,9 +178,9 @@ export default class DashboardService {
       FROM generate_series(1, 12) AS months(month)
       LEFT JOIN transactions t 
         ON t.wallet_id = $1
-        AND t.status = 'completed'
-        AND EXTRACT(YEAR FROM t.payment_date) = $2
-        AND EXTRACT(MONTH FROM t.payment_date) = months.month
+        AND t.status != 'cancelled'
+        AND EXTRACT(YEAR FROM COALESCE(t.payment_date, t.due_date)) = $2
+        AND EXTRACT(MONTH FROM COALESCE(t.payment_date, t.due_date)) = months.month
       GROUP BY months.month
       ORDER BY months.month ASC;
     `;

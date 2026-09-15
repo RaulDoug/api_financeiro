@@ -3,3 +3,5 @@ node_modules
 .env.test
 .agents
 analises_implementacao
+seedSQL.sql
+seed_injector

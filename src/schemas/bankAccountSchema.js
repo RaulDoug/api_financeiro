@@ -6,6 +6,8 @@ const displayIdValidation = z.coerce.number({ invalid_type_error: 'ID inválido'
 const bankNameValidation = z.string().min(2, 'O nome do banco deve ter no mínimo 2 caracteres').max(255);
 const balanceValidation = z.coerce.number({ invalid_type_error: 'Deve informar um valor válido' });
 const allowNegativeBalance = z.boolean({ invalid_type_error: 'Deve ser um valor booleano' });
+const iconValidation = z.string().min(2, 'O nome do icone deve ter no mínimo 2 caracteres').max(100).nullable().optional();
+const colorValidation = z.string().min(2, 'O nome da cor deve ter no mínimo 2 caracteres').max(20).nullable().optional();
 
 
 export const createSchema = z.object({
@@ -13,6 +15,8 @@ export const createSchema = z.object({
     bank_name: bankNameValidation,
     balance: balanceValidation.default(0),
     allow_negative_balance: allowNegativeBalance.default(false),
+    icon: iconValidation,
+    color: colorValidation,
   }),
 });
 
@@ -24,6 +28,8 @@ export const updateSchema = z.object({
     bank_name: bankNameValidation.optional(),
     balance: balanceValidation.optional(),
     allow_negative_balance: allowNegativeBalance.optional(),
+    icon: iconValidation,
+    color: colorValidation,
   }),
 });
 

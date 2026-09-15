@@ -17,7 +17,7 @@ export default class BaseController {
         queryFilters.display_id = Number(queryFilters.display_id);
       }
 
-      if (Object.keys(filters).length > 0) {
+      if (Object.keys(filters).length === 1) {
         const item = await this.service.findOne(queryFilters);
 
         return res.status(200).json({ item });

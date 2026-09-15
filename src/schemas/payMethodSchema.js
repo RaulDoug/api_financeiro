@@ -10,6 +10,8 @@ const closingDayValidation = z.coerce.number({ invalid_type_error: 'O dia de fec
 const creditCardNumberValidation = z.string().regex(/^\d{4,}$/, 'Deve conter no mínimo 4 dígitos numéricos').optional();
 const creditCardLimitValidation = z.coerce.number({ invalid_type_error: 'Deve informar um limite válido e maior que 0'}).optional();
 const creditCardValidation = z.boolean('Este camo só aceita valores true ou false').optional();
+const iconValidation = z.string().min(2, 'O nome do icone deve ter no mínimo 2 caracteres').max(100).nullable().optional();
+const colorValidation = z.string().min(2, 'O nome da cor deve ter no mínimo 2 caracteres').max(20).nullable().optional();
 
 export const createSchema = z.object({
   body: z.object({
@@ -20,6 +22,8 @@ export const createSchema = z.object({
     closing_day: closingDayValidation,
     last_four_digits: creditCardNumberValidation,
     credit_limit: creditCardLimitValidation,
+    icon: iconValidation,
+    color: colorValidation,
   }).refine((data) => {
     if (data.credit_card === true) {
       return !!data.bank_account_id && !!data.due_day && !!data.closing_day && !!data.last_four_digits && !!data.credit_limit;
@@ -39,6 +43,8 @@ export const updateSchema = z.object({
     bank_account_id: bankAccountValidation,
     due_day: dueDayValidation,
     closing_day: closingDayValidation,
+    icon: iconValidation,
+    color: colorValidation,
   }),
 });
 

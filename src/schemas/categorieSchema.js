@@ -7,11 +7,15 @@ const nameValidation = z.string().min(2, 'O nome do banco deve ter no mínimo 2 
 const typeValidation = z.enum(['incomings', 'expenses'], {
   invalid_type_error: "Tipo inválido. Deve ser 'incomings' ou 'expenses'",
 });
+const iconValidation = z.string().min(2, 'O nome do icone deve ter no mínimo 2 caracteres').max(100).nullable().optional();
+const colorValidation = z.string().min(2, 'O nome da cor deve ter no mínimo 2 caracteres').max(20).nullable().optional();
 
 export const createSchema = z.object({
   body: z.object({
     name: nameValidation,
     type: typeValidation,
+    icon: iconValidation,
+    color: colorValidation,
   }),
 });
 
@@ -22,6 +26,8 @@ export const updateSchema = z.object({
   body: z.object({
     name: nameValidation.optional(),
     type: typeValidation.optional(),
+    icon: iconValidation,
+    color: colorValidation,
   }),
 });
 
