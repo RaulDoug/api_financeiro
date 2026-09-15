@@ -632,6 +632,8 @@ A tabela `categories` tem campo `type` que é `incomings` ou `expenses`. O front
   "last_four_digits": "1234",
   "credit_limit": "5000.00",
   "used_credit_limit": "1200.00",
+  "icon": "credit-card",
+  "color": "#820AD1",
   "created_at": "..."
 }
 ```
@@ -713,6 +715,8 @@ A tabela `categories` tem campo `type` que é `incomings` ou `expenses`. O front
   "bank_name": "Nubank",
   "balance": "1500.00",
   "allow_negative_balance": false,
+  "icon": "landmark",
+  "color": "#820AD1",
   "created_at": "2024-08-01T00:00:00.000Z"
 }
 ```
@@ -831,6 +835,8 @@ Telas CRUD simples. Todas seguem o padrão do `BaseController`:
   "wallet_id": "uuid",
   "name": "Alimentação",
   "type": "expenses",
+  "icon": "utensils",
+  "color": "#EF4444",
   "created_at": "2024-08-01T00:00:00.000Z"
 }
 ```

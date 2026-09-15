@@ -268,6 +268,8 @@ Lista todas as contas ou busca uma específica via query string.
     "bank_name": "Nubank",
     "balance": "1500.00",
     "allow_negative_balance": false,
+    "icon": "landmark",
+    "color": "#820AD1",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 ]
@@ -283,6 +285,8 @@ Lista todas as contas ou busca uma específica via query string.
     "bank_name": "Nubank",
     "balance": "1500.00",
     "allow_negative_balance": false,
+    "icon": "landmark",
+    "color": "#820AD1",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 }
@@ -298,22 +302,26 @@ Cria uma nova conta bancária.
 {
   "bank_name": "Nubank",
   "balance": 1500.00,
-  "allow_negative_balance": false
+  "allow_negative_balance": false,
+  "icon": "landmark",
+  "color": "#820AD1"
 }
 ```
 
 **Regras:**
-| Campo                    | Tipo                 | Obrigatório | Padrão  |
-| ------------------------ | -------------------- | ----------- | ------- |
-| `bank_name`              | string, mín. 2 chars | ✅           | —       |
-| `balance`                | número               | ❌           | `0`     |
-| `allow_negative_balance` | boolean              | ❌           | `false` |
+| Campo                    | Tipo                     | Obrigatório | Padrão  |
+| ------------------------ | ------------------------ | ----------- | ------- |
+| `bank_name`              | string, mín. 2 chars     | ✅           | —       |
+| `balance`                | número                   | ❌           | `0`     |
+| `allow_negative_balance` | boolean                  | ❌           | `false` |
+| `icon`                   | string, mín. 2, máx. 100 | ❌           | `null`  |
+| `color`                  | string, mín. 2, máx. 20  | ❌           | `null`  |
 
 **Resposta `201`:**
 ```json
 {
   "message": "Item criado com sucesso",
-  "item": { "id": "uuid", "display_id": 1, "bank_name": "Nubank", ... }
+  "item": { "id": "uuid", "display_id": 1, "bank_name": "Nubank", "icon": "landmark", "color": "#820AD1", ... }
 }
 ```
 
@@ -329,7 +337,9 @@ Atualiza campos de uma conta bancária.
 {
   "bank_name": "Bradesco",
   "balance": 2000.00,
-  "allow_negative_balance": true
+  "allow_negative_balance": true,
+  "icon": "wallet",
+  "color": "#CC092F"
 }
 ```
 
@@ -379,6 +389,8 @@ Lista ou busca categorias da carteira ativa.
     "wallet_id": "uuid-da-carteira",
     "name": "Alimentação",
     "type": "expenses",
+    "icon": "utensils",
+    "color": "#EF4444",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 ]
@@ -393,6 +405,8 @@ Lista ou busca categorias da carteira ativa.
     "wallet_id": "uuid-da-carteira",
     "name": "Alimentação",
     "type": "expenses",
+    "icon": "utensils",
+    "color": "#EF4444",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 }
@@ -407,25 +421,31 @@ Cria uma categoria.
 ```json
 {
   "name": "Alimentação",
-  "type": "expenses"
+  "type": "expenses",
+  "icon": "utensils",
+  "color": "#EF4444"
 }
 ```
 
-| Campo  | Tipo           | Obrigatório | Valores                      |
-| ------ | -------------- | ----------- | ---------------------------- |
-| `name` | string, mín. 2 | ✅           | qualquer                     |
-| `type` | enum           | ✅           | `"incomings"` / `"expenses"` |
+| Campo   | Tipo                     | Obrigatório | Valores / Regras             |
+| ------- | ------------------------ | ----------- | ---------------------------- |
+| `name`  | string, mín. 2           | ✅           | qualquer                     |
+| `type`  | enum                     | ✅           | `"incomings"` / `"expenses"` |
+| `icon`  | string, mín. 2, máx. 100 | ❌           | opcional / `null`            |
+| `color` | string, mín. 2, máx. 20  | ❌           | opcional / `null`            |
 
 ---
 
 ### `PATCH /api/categorie/update/:id`
 Atualiza uma categoria. `:id` = `display_id`.
 
-**Body (ambos opcionais):**
+**Body (todos opcionais):**
 ```json
 {
   "name": "Moradia",
-  "type": "expenses"
+  "type": "expenses",
+  "icon": "home",
+  "color": "#3B82F6"
 }
 ```
 
@@ -530,6 +550,8 @@ Representa pagadores/recebedores nas transações.
     "last_four_digits": null,
     "credit_limit": null,
     "used_credit_limit": null,
+    "icon": "zap",
+    "color": "#10B981",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 ]
@@ -550,6 +572,8 @@ Representa pagadores/recebedores nas transações.
     "last_four_digits": "1234",
     "credit_limit": "5000.00",
     "used_credit_limit": "1200.00",
+    "icon": "credit-card",
+    "color": "#820AD1",
     "created_at": "2024-08-01T00:00:00.000Z"
   }
 }
@@ -564,7 +588,9 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 ```json
 {
   "name": "PIX",
-  "credit_card": false
+  "credit_card": false,
+  "icon": "zap",
+  "color": "#10B981"
 }
 ```
 
@@ -577,7 +603,9 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
   "due_day": 10,
   "closing_day": 3,
   "last_four_digits": "1234",
-  "credit_limit": 5000.00
+  "credit_limit": 5000.00,
+  "icon": "credit-card",
+  "color": "#820AD1"
 }
 ```
 
@@ -590,6 +618,8 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 | `closing_day`      | número inteiro                   | ⚠️           | Obrigatório se `credit_card: true` |
 | `last_four_digits` | string, mín. 4 dígitos numéricos | ⚠️           | Obrigatório se `credit_card: true` |
 | `credit_limit`     | número                           | ⚠️           | Obrigatório se `credit_card: true` |
+| `icon`             | string, mín. 2, máx. 100         | ❌           | opcional / `null`                  |
+| `color`            | string, mín. 2, máx. 20          | ❌           | opcional / `null`                  |
 
 > [!WARNING]
 > Se `credit_card: true` e qualquer um dos 5 campos obrigatórios estiver ausente, a API retorna `422` com a mensagem: *"Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão"*
@@ -597,7 +627,7 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 ---
 
 ### `PATCH /api/pay-method/update/:id`
-`:id` = `display_id`. Body: `name`, `bank_account_id`, `due_day`, `closing_day` (todos opcionais).
+`:id` = `display_id`. Body: `name`, `bank_account_id`, `due_day`, `closing_day`, `icon`, `color` (todos opcionais).
 
 > [!WARNING]
 > Não é possível alterar o campo `credit_card` após a criação.
