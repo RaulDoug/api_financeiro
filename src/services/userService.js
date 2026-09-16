@@ -43,7 +43,7 @@ export default class UserService {
       email: user.rows[0].email,
     };
 
-    const token = jwt.sign(payload, secretKey, { expiresIn: '1d' });
+    const token = jwt.sign(payload, secretKey, { expiresIn: '30d' });
     console.log('Token gerado', token);
 
     const response = {
