@@ -83,7 +83,7 @@ export const deleteSchema = z.object({
 // VAlidação para o método find
 export const findSchema = z.object({
   query: createSchema.shape.body.partial().extend({
-    id: z.string().uuid('ID da transação inválido'),
+    id: z.string().uuid('ID da transação inválido').optional(),
     bank_account_id: toArray(bankAccountIdValidation),
     category_id: toArray(categorieIdValidation),
     pay_methods_id: toArray(payMethodIdValidation),
