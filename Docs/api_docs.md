@@ -657,9 +657,19 @@ Esta é a rota mais complexa da API. Suporta 3 tipos de transação com regras d
 | `"completed"` | Pago — movimenta o saldo |
 | `"cancelled"` | Cancelado                |
 | `"expired"`   | Vencido                  |
-
 > [!NOTE]
-> Se `payment_date` for enviado na criação, o status automaticamente vira `"completed"`.
+> - Se `payment_date` for enviado na criação, o status automaticamente vira `"completed"`.
+> - O status `"expired"` é atribuído automaticamente pela rotina em segundo plano descrita abaixo.
+
+### ⏰ Rotina Automática de Expiração (Background Job)
+
+A API possui um serviço em segundo plano gerenciado por `node-cron` que monitora transações vencidas:
+
+* **Regra:** Transações com `status = 'pending'` e data de vencimento anterior à data atual (`due_date < CURRENT_DATE`).
+* **Ação:** O status é atualizado no banco de dados para `'expired'`.
+* **Gatilhos de Execução:**
+  * **Inicialização da API (Boot):** Roda imediatamente quando o servidor/container sobe (garante dados atualizados após reinicializações).
+  * **Agendamento Diário:** Disparado todos os dias às **00:01** (expressão cron `1 0 * * *`).
 
 ---
 
