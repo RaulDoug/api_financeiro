@@ -43,6 +43,8 @@ export const updateSchema = z.object({
     bank_account_id: bankAccountValidation,
     due_day: dueDayValidation,
     closing_day: closingDayValidation,
+    last_four_digits: creditCardNumberValidation,
+    credit_limit: creditCardLimitValidation,
     icon: iconValidation,
     color: colorValidation,
   }),
