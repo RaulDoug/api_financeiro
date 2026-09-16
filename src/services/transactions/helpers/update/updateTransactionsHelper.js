@@ -5,6 +5,7 @@ import {
   validateResoureceOwnershipHelper,
   todayHelper,
 } from '../transactionsHelpers.js';
+import AppError from '../../../../errors/AppError.js';
 
 // Buscando todas as parcelas de mesmo installments_group_id
 export const installmentsList = async (transactionId, client) => {
@@ -53,15 +54,15 @@ export const resolveFinalTransactionStateHelper = (currentTransaction, fieldsToU
   if ('status' in fieldsToUpdate) {
     finalStatus = fieldsToUpdate.status;
 
-    if (finalStatus === 'expired' && (new Date(finalDueDate) > today || !('due_date' in fieldsToUpdate))) {
-      throw new Error('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual');
+    if (finalStatus === 'expired' && new Date(finalDueDate) >= today) {
+      throw new AppError('Não pode definir a transação como vencida quando a data de vencimento for maior ou igual a data atual', 400);
     }
 
     // Validação de alteração de status expired para pending
     const isExpiredToPending = currentTransaction.status === 'expired' && fieldsToUpdate.status === 'pending';
     const isMissingOrPastDueDate = !('due_date' in fieldsToUpdate) || new Date(finalDueDate) < today;
     if (isExpiredToPending && isMissingOrPastDueDate) {
-      throw new Error('A transação não pode ser pendente quando o dia de vencimento for menor que a data atual');
+      throw new AppError('A transação não pode ser pendente quando o dia de vencimento for menor que a data atual', 400);
     }
 
     if (finalStatus === 'pending' && new Date(finalDueDate) < today) { finalStatus = 'expired'; }
@@ -78,7 +79,7 @@ export const resolveFinalTransactionStateHelper = (currentTransaction, fieldsToU
 
   // Validação do type transfer
   if ('type' in fieldsToUpdate && finalType === 'transfers' && !('destiny_bank_account_id' in data)) {
-    throw new Error('O campo de conta de destino é obrigatório para alterar o tipo para transferência');
+    throw new AppError('O campo de conta de destino é obrigatório para alterar o tipo para transferência', 400);
   }
 
   return {

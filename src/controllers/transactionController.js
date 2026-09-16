@@ -53,7 +53,7 @@ export default class TransactionController {
     } catch (error) {
       console.log(error);
 
-      if (error instanceof AppError) {
+      if (error instanceof AppError || error.statusCode) {
         return res.status(error.statusCode).json({ message: error.message });
       }
       
@@ -100,7 +100,7 @@ export default class TransactionController {
     } catch (error) {
       console.log(error);
 
-      if (error instanceof AppError) {
+      if (error instanceof AppError || error.statusCode) {
         return res.status(error.statusCode).json({ message: error.message });
       }
       
