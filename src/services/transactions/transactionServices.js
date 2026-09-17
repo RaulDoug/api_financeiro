@@ -718,7 +718,14 @@ export default class TransactionServices {
     }
 
     // Validação de associação de usuário com a carteira
-    await userValidateHelper(user_id, wallet_id);
+    const userValidate = await pool.query(
+      'SELECT user_id, wallet_id, role FROM users_wallets WHERE user_id = $1 AND wallet_id = $2',
+      [user_id, wallet_id],
+    );
+
+    if (userValidate.rows.length === 0) {
+      throw new Error('Usuário sem permissão ou não vinculado a carteira');
+    }
 
     // Normalização para array os campos que podem ser múlti valor
     const multiValueFields = [
