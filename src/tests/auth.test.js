@@ -1,7 +1,14 @@
-import { expect, test } from 'vitest';
+import { expect, test, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import pool from '../config/db.js';
+import { registerLimit, loginLimit } from '../middlewares/auth.js';
+
+beforeEach(() => {
+  registerLimit.resetKey('127.0.0.1');
+  registerLimit.resetKey('192.168.1.100');
+  loginLimit.resetKey('127.0.0.1');
+});
 
 
 // Testes CADASTRO
@@ -55,6 +62,62 @@ test('Não deve cadastrar um usuário se faltar campos obrigatórios', async () 
 
   const dbUser = await pool.query('SELECT * FROM users WHERE email = $1', ['raul@test.com']);
   expect(dbUser.rows.length).toBe(0);
+});
+
+test('Não deve permitir mais de 5 cadastros dentro da janela de tempo (rate limit)', async () => {
+  for (let i = 1; i <= 5; i++) {
+    const response = await request(app).post('/api/auth/register').send({
+      name: `User Rate ${i}`,
+      email: `rate${i}@test.com`,
+      password: 'senhaDeTeste123@',
+    });
+    expect(response.status).toBe(201);
+  }
+
+  const blockedResponse = await request(app).post('/api/auth/register').send({
+    name: 'User Rate Bloqueado',
+    email: 'bloqueado@test.com',
+    password: 'senhaDeTeste123@',
+  });
+
+  expect(blockedResponse.status).toBe(429);
+  expect(blockedResponse.body.message).toBe('Muitas contas criadas a partir deste IP. Tente novamente em 1 hora.');
+  expect(blockedResponse.headers['ratelimit-remaining']).toBe('0');
+
+  const dbUser = await pool.query('SELECT * FROM users WHERE email = $1', ['bloqueado@test.com']);
+  expect(dbUser.rows.length).toBe(0);
+});
+
+test('Deve permitir cadastro a partir de outro IP mesmo após limite ser atingido no primeiro IP', async () => {
+  for (let i = 1; i <= 5; i++) {
+    await request(app).post('/api/auth/register').send({
+      name: `User IP1 ${i}`,
+      email: `user_ip1_${i}@test.com`,
+      password: 'senhaDeTeste123@',
+    });
+  }
+
+  const blockedResponse = await request(app).post('/api/auth/register').send({
+    name: 'User IP1 Bloqueado',
+    email: 'user_ip1_bloqueado@test.com',
+    password: 'senhaDeTeste123@',
+  });
+  expect(blockedResponse.status).toBe(429);
+
+  const allowedResponse = await request(app)
+    .post('/api/auth/register')
+    .set('X-Forwarded-For', '192.168.1.100')
+    .send({
+      name: 'User Outro IP',
+      email: 'user_outro_ip@test.com',
+      password: 'senhaDeTeste123@',
+    });
+
+  expect(allowedResponse.status).toBe(201);
+  expect(allowedResponse.body.message).toBe('Usuário criado com sucesso!');
+
+  const dbUser = await pool.query('SELECT * FROM users WHERE email = $1', ['user_outro_ip@test.com']);
+  expect(dbUser.rows.length).toBe(1);
 });
 
 // Testes LOGIN

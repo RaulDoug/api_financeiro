@@ -33,3 +33,11 @@ export const loginLimit = rateLimit({
   limit: 5, // Limite de requisições por IP
   message: 'Muitas tentativas de login neste IP, tente novamente após 15 minutos.',
 });
+
+export const registerLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  limit: 5, // máx 5 cadastros por IP por hora
+  message: { message: 'Muitas contas criadas a partir deste IP. Tente novamente em 1 hora.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
