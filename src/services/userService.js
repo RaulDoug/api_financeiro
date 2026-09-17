@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import pool from '../config/db.js';
 import jwt from 'jsonwebtoken';
+import AppError from '../errors/AppError.js';
 
 export default class UserService {
   async userRegister(name, email, password) {
@@ -54,5 +55,31 @@ export default class UserService {
     };
 
     return response;
+  }
+
+  async findAllUsers() {
+    const allUsers = await pool.query(
+      'SELECT id, email FROM users',
+    );
+
+    return { users: allUsers.rows };
+  }
+
+  async findUserByEmail(client = null, email) {
+    const db = client || pool; 
+
+    const user = await db.query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email],
+    );
+
+    if (user.rows.lenght <= 0) {
+      throw new AppError('Nenhum usuário localizado com este email', 404);
+    }
+
+    return {
+      id: user.rows[0].id,
+      email: user.rows[0].email,
+    };
   }
 }

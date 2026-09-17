@@ -24,3 +24,9 @@ export const loginUserSchema = z.object({
     password: z.string().min(1, 'A senha é obrigatória'),
   }),
 });
+
+export const findUserByEmailSchema = z.object({
+  query: {
+    email: emailValidation,
+  },
+});

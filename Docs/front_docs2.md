@@ -55,7 +55,8 @@ Content-Type: application/json
 ```
 
 > **Exceções:** Rotas de Auth (`/api/auth/*`) não precisam de nenhum header.  
-> Rotas de Wallet (`/api/wallet/*`) precisam apenas do `Authorization`.
+> Rotas de Wallet (`/api/wallet/*`) e de Convites (`/api/wallet-invite/find-invites` e `/api/wallet-invite/accept-invite`) precisam apenas do `Authorization`.
+> Apenas `/api/wallet-invite/send-invite` exige `x-wallet-id`.
 
 ---
 

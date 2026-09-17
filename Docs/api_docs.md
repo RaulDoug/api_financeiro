@@ -38,6 +38,9 @@ x-wallet-id: <uuid-da-carteira>
 | Wallet           | POST   | `/api/wallet/register`                      | ✅    | ❌           |
 | Wallet           | PATCH  | `/api/wallet/update/:id`                    | ✅    | ❌           |
 | Wallet           | DELETE | `/api/wallet/delete/:id`                    | ✅    | ❌           |
+| Convites         | GET    | `/api/wallet-invite/find-invites`           | ✅    | ❌           |
+| Convites         | POST   | `/api/wallet-invite/send-invite`            | ✅    | ✅           |
+| Convites         | PATCH  | `/api/wallet-invite/accept-invite`          | ✅    | ❌           |
 | Conta Bancária   | GET    | `/api/bank-account`                         | ✅    | ✅           |
 | Conta Bancária   | POST   | `/api/bank-account/register`                | ✅    | ✅           |
 | Conta Bancária   | PATCH  | `/api/bank-account/update/:id`              | ✅    | ✅           |
@@ -242,6 +245,157 @@ Exclui uma carteira.
   "wallet": { "id": "uuid", ... }
 }
 ```
+
+---
+
+## ✉️ Wallet Invites — Convites de Carteira
+
+Módulo responsável pelo envio, listagem e resposta a convites de compartilhamento de carteiras.
+
+---
+
+### `POST /api/wallet-invite/send-invite`
+Envia um convite de compartilhamento de carteira para um usuário via e-mail. Apenas usuários com papel `owner` na carteira ativa informada no header podem enviar convites.
+
+> [!IMPORTANT]
+> Esta rota exige o header `x-wallet-id` da carteira que será compartilhada.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+- `x-wallet-id: <uuid-da-carteira>`
+
+**Query Params:**
+| Parâmetro         | Tipo   | Obrigatório | Regras                                             |
+| ----------------- | ------ | ----------- | -------------------------------------------------- |
+| `inviter_user_id` | UUID   | Sim         | UUID válido do usuário que envia o convite         |
+| `invited_email`   | string | Sim         | Formato de e-mail válido (convertido p/ minúsculo) |
+| `role`            | enum   | Sim         | Papel atribuído: `'viewer'` ou `'editor'`          |
+
+**Resposta `200`:**
+```json
+{
+  "message": "Convite enviado com sucesso para o usuário convidado@email.com!",
+  "rows": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "wallet_id": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+    "inviter_user_id": "1fa85f64-5717-4562-b3fc-2c963f66afa2",
+    "invited_email": "convidado@email.com",
+    "role": "editor",
+    "status": "pending",
+    "created_at": "2026-09-17T13:00:00.000Z"
+  }
+}
+```
+
+**Erros:**
+| Status | Mensagem                                                                             |
+| ------ | ------------------------------------------------------------------------------------ |
+| `400`  | Erros de validação Zod / `"ID da carteira ou usuário faltante na requisição"`        |
+| `403`  | `"Usuário sem permissão para envio de convite"` / `"Acesso negado a esta carteira."` |
+| `500`  | `"Erro interno do servidor"`                                                         |
+
+---
+
+### `GET /api/wallet-invite/find-invites`
+Retorna todos os convites pendentes recebidos pelo usuário autenticado (filtrados automaticamente pelo e-mail presente no token JWT).
+
+> [!NOTE]
+> **Não** exige o header `x-wallet-id`.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Resposta `200`:**
+```json
+{
+  "result": {
+    "rows": [
+      {
+        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "wallet_id": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+        "inviter_user_id": "1fa85f64-5717-4562-b3fc-2c963f66afa2",
+        "invited_email": "meu_email@email.com",
+        "role": "editor",
+        "status": "pending",
+        "created_at": "2026-09-17T13:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Erros:**
+| Status | Mensagem                                           |
+| ------ | -------------------------------------------------- |
+| `400`  | `"ID do usuário ou e-mail faltante na requisição"` |
+| `401`  | `"Acesso negado. Token não fornecido ou inválido"` |
+| `500`  | `"Erro interno do servidor"`                       |
+
+---
+
+### `PATCH /api/wallet-invite/accept-invite`
+Responde a um convite pendente.
+- Se `accept=true`: altera o status para `'accepted'` e vincula o usuário à carteira (`users_wallets`) com o papel definido.
+- Se `accept=false`: altera o status para `'rejected'` sem criar vínculo na carteira.
+
+> [!NOTE]
+> **Não** exige o header `x-wallet-id`. O `wallet_id` é enviado nos parâmetros da query.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+
+**Query Params:**
+| Parâmetro   | Tipo | Obrigatório | Regras                                           |
+| ----------- | ---- | ----------- | ------------------------------------------------ |
+| `accept`    | enum | Sim         | `'true'` para aceitar ou `'false'` para rejeitar |
+| `wallet_id` | UUID | Sim         | UUID válido da carteira                          |
+| `invite_id` | UUID | Sim         | UUID válido do convite                           |
+
+**Resposta `200` (Aceito — `accept=true`):**
+```json
+{
+  "result": {
+    "acceptResult": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "wallet_id": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+      "inviter_user_id": "1fa85f64-5717-4562-b3fc-2c963f66afa2",
+      "invited_email": "meu_email@email.com",
+      "role": "editor",
+      "status": "accepted",
+      "created_at": "2026-09-17T13:00:00.000Z"
+    },
+    "insertResult": {
+      "user_id": "2fa85f64-5717-4562-b3fc-2c963f66afa3",
+      "wallet_id": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+      "role": "editor"
+    }
+  }
+}
+```
+
+**Resposta `200` (Recusado — `accept=false`):**
+```json
+{
+  "result": {
+    "acceptResult": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "wallet_id": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+      "inviter_user_id": "1fa85f64-5717-4562-b3fc-2c963f66afa2",
+      "invited_email": "meu_email@email.com",
+      "role": "editor",
+      "status": "rejected",
+      "created_at": "2026-09-17T13:00:00.000Z"
+    }
+  }
+}
+```
+
+**Erros:**
+| Status | Mensagem                                                               |
+| ------ | ---------------------------------------------------------------------- |
+| `400`  | `"ID da carteira, usuário ou email faltante na requisição"` / Erro Zod |
+| `404`  | `"Convite não encontrado ou já respondido"`                            |
+| `500`  | `"Erro interno do servidor"`                                           |
 
 ---
 

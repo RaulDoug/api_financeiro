@@ -61,6 +61,21 @@ CREATE TABLE users_wallets (
 );
 
 -------------------------------------------------
+-- Tabela para envio e aceite de convites para acessar carteiras
+-------------------------------------------------
+CREATE TYPE users_wallets_invites_types AS ENUM ('pending', 'accepted', 'rejected');
+
+CREATE TABLE wallet_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+  inviter_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  invited_email VARCHAR(255) NOT NULL,
+  role users_wallets_types NOT NULL DEFAULT 'viewer',
+  status users_wallets_invites_types NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-------------------------------------------------
 -- Contas bancárias da carteira
 -------------------------------------------------
 CREATE TABLE bank_accounts (

@@ -9,6 +9,7 @@ import payMethodRoutes from './routes/payMethodRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 import investimentAssetRoutes from './routes/investimentAssetRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import walletInviteRoutes from './routes/walletInviteRoutes.js';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/pay-method', payMethodRoutes);
 app.use('/api/transaction', transactionRoutes);
 app.use('/api/investiment-asset', investimentAssetRoutes);
 app.use('/api/dashboard-report', dashboardRoutes);
+app.use('/api/wallet-invite', walletInviteRoutes);
 
 
 export default app;
