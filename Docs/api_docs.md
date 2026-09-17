@@ -19,8 +19,12 @@ Authorization: Bearer <seu_token_jwt>
 ```
 x-wallet-id: <uuid-da-carteira>
 ```
+**Rate limiting:**
+- **Login (`/api/auth/login`):** máximo de **5 tentativas por IP** a cada 15 minutos (`windowMs: 15min`).
+- **Cadastro (`/api/auth/register`):** máximo de **5 cadastros por IP** a cada 1 hora (`windowMs: 1h`).
 
-**Rate limiting no login:** máximo de **5 tentativas por IP** a cada 15 minutos.
+> [!NOTE]
+> A API está configurada com `trust proxy` ativado. Em ambientes atrás de proxy reverso (ex: Vercel Rewrites, Nginx ou Cloudflare), o IP real do cliente é obtido a partir do header `X-Forwarded-For`.
 
 ---
 
@@ -102,11 +106,12 @@ Cria um novo usuário.
 ```
 
 **Erros:**
-| Status | Mensagem                     |
-| ------ | ---------------------------- |
-| `400`  | `"Email já cadastrado"`      |
-| `422`  | Erros de validação do schema |
-| `500`  | `"Erro interno do servidor"` |
+| Status | Mensagem                                                                             |
+| ------ | ------------------------------------------------------------------------------------ |
+| `400`  | `"Email já cadastrado"`                                                              |
+| `422`  | Erros de validação do schema                                                         |
+| `429`  | `"Muitas contas criadas a partir deste IP. Tente novamente em 1 hora."` (Rate Limit) |
+| `500`  | `"Erro interno do servidor"`                                                         |
 
 ---
 
