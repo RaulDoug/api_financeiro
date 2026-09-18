@@ -112,12 +112,13 @@ export default class DashboardService {
     };
   }
 
-  async getMonthForecast(walletId) {
-    const totalBalance = (await this.getTotalAccountBalance(walletId)).total;
-    const pendingIncomes = (await this.getPendingIncomes(walletId)).total;
-    const pendingExpenses = (await this.getPendingExpenses(walletId)).total;
+  async getMonthForecast(walletId, filters = {}) {
+    const completedIncomes = (await this.getCompletedIncomes(walletId, filters)).total;
+    const pendingIncomes = (await this.getPendingIncomes(walletId, filters)).total;
+    const completedExpenses = (await this.getCompletedExpenses(walletId, filters)).total;
+    const pendingExpenses = (await this.getPendingExpenses(walletId, filters)).total;
 
-    const projectedBalance = totalBalance + pendingIncomes - pendingExpenses;
+    const projectedBalance = (completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses);
 
     return {
       projected_balance: Number(projectedBalance.toFixed(2)),

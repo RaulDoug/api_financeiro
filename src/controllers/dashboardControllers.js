@@ -15,7 +15,7 @@ export default class DashboardController {
       const pendingIncomes = await dashboardService.getPendingIncomes(walletId, filters);
       const pendingExpenses = await dashboardService.getPendingExpenses(walletId, filters);
       const totalBalance = await dashboardService.getTotalAccountBalance(walletId);
-      const monthForecast = await dashboardService.getMonthForecast(walletId);
+      const monthForecast = await dashboardService.getMonthForecast(walletId, filters);
 
       return res.status(200).json({
         completedIncomes: completedIncomes.total,
