@@ -1062,13 +1062,21 @@ export default class TransactionServices {
     try {
       // Contagem total da lsita de transações
       const countQuery = `
-        SELECT COUNT(*) AS total
+        SELECT 
+          COUNT(*) AS total,
+          COALESCE(SUM(CASE WHEN t.type = 'incomings' AND t.status != 'cancelled' THEN t.value ELSE 0 END), 0) AS total_incomings,
+          COALESCE(SUM(CASE WHEN t.type = 'expenses' AND t.status != 'cancelled' THEN t.value ELSE 0 END), 0) AS total_expenses
         FROM transactions t
         WHERE ${whereClauses.join(' AND ')}
       `;
 
       const countResult = await client.query(countQuery, values);
       const totalItems = parseInt(countResult.rows[0]?.total || 0, 10);
+
+      const totals = {
+        incomings: Number(parseFloat(countResult.rows[0]?.total_incomings || 0).toFixed(2)),
+        expenses: Number(parseFloat(countResult.rows[0]?.total_expenses || 0).toFixed(2)),
+      };
 
       placeholderCounter += 1;
       const limitPlaceholder = `$${placeholderCounter}`;
@@ -1140,7 +1148,7 @@ export default class TransactionServices {
         };
       }
 
-      return { rows: result.rows, pagination };
+      return { rows: result.rows, pagination, totals };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
