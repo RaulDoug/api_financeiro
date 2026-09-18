@@ -89,7 +89,9 @@ export const findSchema = z.object({
     pay_methods_id: toArray(payMethodIdValidation),
     counterparty_id: toArray(counterpartyIdValidation),
     creator_user_id: toArray(creatorUserIdValidation),
-    type: toArray(typeValidation),
+    type: toArray(z.enum(['incomings', 'expenses', 'transfer_in', 'transfer_out'], {
+      message: "Tipo inválido. Deve ser 'incomings', 'expenses', 'transfer_in' ou 'transfer_out'",
+    })),
     status: toArray(statusValidation),
     is_recurrent: booleanQueryValidation,
     first_this_month: booleanQueryValidation,

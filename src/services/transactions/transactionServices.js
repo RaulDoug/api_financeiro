@@ -787,6 +787,10 @@ export default class TransactionServices {
           throw new AppError('Tipo de transação inválido', 400);
         }
       }
+
+      filterFields.type = filterFields.type.flatMap((item) =>
+        item === 'transfers' ? ['transfer_in', 'transfer_out'] : item,
+      );
     }
 
     const statusWhitelist = ['pending', 'completed', 'cancelled', 'expired'];
