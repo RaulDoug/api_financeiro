@@ -9,9 +9,12 @@ export const validate = (schema) => (req, res, next) => {
     });
 
     if (parsed.query) {
-      // Mutar/Atualizar os valores existentes no objeto req.query
-      Object.keys(req.query).forEach(key => delete req.query[key]);
-      Object.assign(req.query, parsed.query);
+      Object.defineProperty(req, 'query', {
+        value: parsed.query,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
     }
 
     next();

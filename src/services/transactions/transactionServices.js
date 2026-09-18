@@ -811,12 +811,15 @@ export default class TransactionServices {
     for (const field of numberFields) {
       if (filterFields[field] !== undefined) {
         // Validação de valores inválidos, 0 ou negativos
-        const isNumber = typeof filterFields[field] === 'number' && !isNaN(filterFields[field]);
-        const isPositive = filterFields[field] > 0;
+        const numVal = Number(filterFields[field]);
+        const isNumber = !isNaN(numVal);
+        const isPositive = numVal > 0;
 
         if (!isNumber || !isPositive) {
           throw new AppError('O valor da transação deve ser um número válido', 400);
         }
+        
+        filterFields[field] = numVal;
 
         // Validação value_min não pode ser maior que o value_max
         if (field === 'value_min') {
