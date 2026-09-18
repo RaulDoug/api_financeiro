@@ -869,7 +869,7 @@ export default class TransactionServices {
     const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     for (const field of dateFields) {
-      const value = filterFields[field];
+      let value = filterFields[field];
       if (value === undefined) { continue; };
 
       if (value instanceof Date) {
