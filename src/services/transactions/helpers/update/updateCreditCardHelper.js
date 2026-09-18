@@ -123,13 +123,33 @@ export const updateForCreditCardHelper = async ({
     const feesCalculatedForInstallments = Number(feesAndAssessment) / Number(allInstallmentsList.length);
 
     const totalNewValue = totalOldValue + feesAndAssessment;
-    const delta = totalNewValue - totalOldValue;
 
-    await updateCreditCardLimitHelper({
-      payMethodId: currentTransaction.pay_methods_id,
-      delta,
-      client,
-    });
+    const isCardChangingAll = 'pay_methods_id' in fieldsToUpdate
+      && fieldsToUpdate.pay_methods_id !== currentTransaction.pay_methods_id;
+
+    if (isCardChangingAll) {
+      // Troca de cartão: reverte tudo do antigo, soma tudo no novo
+      await updateCreditCardLimitHelper({
+        payMethodId: currentTransaction.pay_methods_id,
+        delta: -totalOldValue,        // reverte o total atual do cartão de origem
+        client,
+      });
+
+      await updateCreditCardLimitHelper({
+        payMethodId: fieldsToUpdate.pay_methods_id,
+        delta: totalNewValue,         // soma o total (com eventuais juros) no destino
+        client,
+      });
+    } else {
+      // Comportamento original: só ajusta delta de juros/multas no mesmo cartão
+      const delta = totalNewValue - totalOldValue;
+
+      await updateCreditCardLimitHelper({
+        payMethodId: currentTransaction.pay_methods_id,
+        delta,
+        client,
+      });
+    }
 
     // Revertendo o saldo da conta caso o currentTransaction.status for 'completed'
     if (currentTransaction.status === 'completed') {
@@ -239,6 +259,32 @@ export const updateForCreditCardHelper = async ({
   const isReactivating = currentTransaction.status === 'cancelled' && finalStatus !== 'cancelled';
 
   const isValueChanging = 'value' in fieldsToUpdate;
+
+  // Troca de cartão A → cartão B: reverte limite do cartão antigo, soma no novo
+  const isCardChanging = 'pay_methods_id' in fieldsToUpdate
+    && fieldsToUpdate.pay_methods_id !== currentTransaction.pay_methods_id;
+
+  if (isCardChanging && !data.all_installments) {
+    const valorAtual = Number(currentTransaction.value);
+    const valorNovo = Number(fieldsToUpdate.value || currentTransaction.value);
+
+    // 1. Reverte o valor inteiro do cartão de ORIGEM
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta: -valorAtual,
+      client,
+    });
+
+    // 2. Soma o valor (possivelmente novo) no cartão de DESTINO
+    await updateCreditCardLimitHelper({
+      payMethodId: fieldsToUpdate.pay_methods_id,
+      delta: valorNovo,
+      client,
+    });
+
+    // 3. Impede que o bloco abaixo (isValueChanging) tente atualizar o cartão antigo de novo
+    return payload;
+  }
 
   if ((isValueChanging || isReactivating) && !data.all_installments) {
     const impactoAntigo = currentTransaction.status === 'cancelled' ? 0 : Number(currentTransaction.value);
