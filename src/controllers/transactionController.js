@@ -190,6 +190,7 @@ export default class TransactionController {
         return res.status(200).json({ 
           rows: findItem.rows,
           pagination: findItem.pagination, 
+          totals: findItem.totals,
         });
       }
     } catch (error) {
