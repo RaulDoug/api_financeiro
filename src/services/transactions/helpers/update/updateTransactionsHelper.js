@@ -212,12 +212,12 @@ export const calculateBalanceOperationsHelper = async (currentTransaction, final
     const validateBalanceTransferTransactions = i.originAccountBalance < 0 && i.originAccountAllowNegative === false;
 
     if (validadeBalanceBaseTransactions || validateBalanceTransferTransactions) {
-      throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
+      throw new AppError('Conta bancária sem saldo suficiente para realizar a transação', 400);
     }
   }
 
   if ('payment_date' in fieldsToUpdate && fieldsToUpdate.status === 'cancelled') {
-    throw new Error('Não é possível definir uma data de pagamento junto com status cancelled');
+    throw new AppError('Não é possível definir uma data de pagamento junto com status cancelled', 400);
   }
 
   return {balanceOperations, newFinalValue};

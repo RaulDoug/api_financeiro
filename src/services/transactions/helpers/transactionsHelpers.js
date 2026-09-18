@@ -1,5 +1,6 @@
 import pool from '../../../config/db.js';
 import { format, startOfDay } from 'date-fns';
+import { AppError } from '../../../errors/AppError.js';
 
 export const userValidateHelper = async (userId, walletId) => {
   const result = await pool.query(
@@ -69,7 +70,7 @@ export const validateTransactionsFksHelper = async (data, isUpdate = false) => {
     }
 
     if (!item.id) {
-      throw new Error('Os campos de conta bancária, categoria, método de pagamento e contraparte devem ser preenchidos');
+      throw new AppError('Os campos de conta bancária, categoria, método de pagamento e contraparte devem ser preenchidos', 400);
     };
 
     const resulta = await pool.query(
@@ -78,7 +79,7 @@ export const validateTransactionsFksHelper = async (data, isUpdate = false) => {
     );
 
     if (resulta.rows.length === 0) {
-      throw new Error(`${item.label} não foi encontrada ou não pertence a esta carteira.`);
+      throw new AppError(`${item.label} não foi encontrada ou não pertence a esta carteira.`, 400);
     }
   }
 };

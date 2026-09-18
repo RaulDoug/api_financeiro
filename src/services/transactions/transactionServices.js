@@ -1091,7 +1091,11 @@ export default class TransactionServices {
           p.name AS pay_method_name,
           cp.name AS counterparty_name,
           u.name AS creator_user_name,
-          t.created_at
+          t.created_at,
+          t.bank_account_id,
+          t.category_id,
+          t.pay_methods_id,
+          t.counterparty_id
         FROM transactions t
         LEFT JOIN bank_accounts b ON b.id = t.bank_account_id
         LEFT JOIN categories c ON c.id = t.category_id
