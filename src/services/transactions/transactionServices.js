@@ -818,7 +818,7 @@ export default class TransactionServices {
         if (!isNumber || !isPositive) {
           throw new AppError('O valor da transação deve ser um número válido', 400);
         }
-        
+
         filterFields[field] = numVal;
 
         // Validação value_min não pode ser maior que o value_max
@@ -1101,6 +1101,13 @@ export default class TransactionServices {
           t.transfers_id,
           t.invoice_id,
           t.current_installment,
+          t.installments_group_id,
+          (
+            SELECT COUNT(*)::int 
+            FROM transactions t2 
+            WHERE t2.installments_group_id = t.installments_group_id 
+              AND t2.status != 'cancelled'
+          ) AS total_installments,
           b.bank_name AS bank_account_name,
           c.name AS category_name,
           p.name AS pay_method_name,

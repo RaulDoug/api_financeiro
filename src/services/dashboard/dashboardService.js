@@ -241,13 +241,20 @@ export default class DashboardService {
 
       const transactions = await pool.query(
         `
-        SELECT *
-        FROM transactions
-        WHERE wallet_id = $1
-        AND pay_methods_id = $2
-        AND type = 'expenses'
-        AND status != 'cancelled'
-        AND due_date BETWEEN $3 AND $4
+        SELECT 
+          t.*,
+          (
+            SELECT COUNT(*)::int 
+            FROM transactions t2 
+            WHERE t2.installments_group_id = t.installments_group_id 
+              AND t2.status != 'cancelled'
+          ) AS total_installments
+        FROM transactions t
+        WHERE t.wallet_id = $1
+        AND t.pay_methods_id = $2
+        AND t.type = 'expenses'
+        AND t.status != 'cancelled'
+        AND t.due_date BETWEEN $3 AND $4
         `,
         [walletId, row.id, startDate, endDate],
       );
