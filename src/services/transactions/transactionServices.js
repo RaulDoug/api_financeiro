@@ -872,6 +872,11 @@ export default class TransactionServices {
       const value = filterFields[field];
       if (value === undefined) { continue; };
 
+      if (value instanceof Date) {
+        value = value.toISOString().split('T')[0];
+        filterFields[field] = value;
+      }
+
       // validação do formato
       if (!isoRegex.test(value)) {
         throw new AppError('Formato de data inválido. Use o formato YYYY-MM-DD');
