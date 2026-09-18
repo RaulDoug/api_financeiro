@@ -1148,7 +1148,11 @@ export default class TransactionServices {
         };
       }
 
-      return { rows: result.rows, pagination, totals };
+      return { 
+        rows: result.rows,
+        pagination,
+        totals: totals || { incomings: 0, expenses: 0 },
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
