@@ -470,11 +470,15 @@ O coração operacional do sistema.
   "pay_method_name": "PIX",
   "counterparty_name": "Supermercado Extra",
   "creator_user_name": "João Silva",
-  "created_at": "2024-08-01T00:00:00.000Z"
+  "created_at": "2024-08-01T00:00:00.000Z",
+  "bank_account_id": "uuid",
+  "category_id": "uuid",
+  "pay_methods_id": "uuid",
+  "counterparty_id": "uuid"
 }
 ```
 
-> **Importante:** O GET de transações retorna **nomes resolvidos via JOIN** (não UUIDs). São eles: `bank_account_name`, `category_name`, `pay_method_name`, `counterparty_name`, `creator_user_name`.
+> **Importante:** O GET de transações retorna tanto os UUIDs das chaves estrangeiras (`bank_account_id`, `category_id`, `pay_methods_id`, `counterparty_id`) quanto os nomes resolvidos via JOIN (`bank_account_name`, `category_name`, `pay_method_name`, `counterparty_name`, `creator_user_name`).
 
 ### 6.2 Filtros da Tela
 

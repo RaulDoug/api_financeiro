@@ -1,6 +1,6 @@
 import pool from '../../../config/db.js';
 import { format, startOfDay } from 'date-fns';
-import { AppError } from '../../../errors/AppError.js';
+import AppError from '../../../errors/AppError.js';
 
 export const userValidateHelper = async (userId, walletId) => {
   const result = await pool.query(
