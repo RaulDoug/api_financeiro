@@ -1055,7 +1055,7 @@ export default class TransactionServices {
       }
     }
 
-    let orderByClauses = ['ORDER BY t.due_date ASC'];
+    let orderByClauses = ['ORDER BY t.due_date DESC'];
 
     if (order_by !== undefined) {
       const targetColumn = sortFieldsMap[order_by];
