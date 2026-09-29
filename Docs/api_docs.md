@@ -1127,13 +1127,16 @@ Atualiza uma transação. `:id` = UUID da transação.
   "payment_date": "2024-08-15",
   "value": 280.00,
   "description": "Compras revisadas",
-  "all_installments": false
+  "bank_account_id": "uuid",
+  "all_installments": false,
+  "total_invoice": false
 }
 ```
 
 | Campo especial     | Tipo    | Notas                                                  |
 | ------------------ | ------- | ------------------------------------------------------ |
 | `all_installments` | boolean | Se `true`, aplica update em todas as parcelas do grupo |
+| `total_invoice`    | boolean | Se `true` e `status: "completed"`, quita a fatura completa associada ao `invoice_id` da transação, marcando todas as compras pendentes como `completed`, debitando a soma da conta bancária (`bank_account_id`) e restabelecendo o limite utilizado no cartão |
 
 > [!WARNING]
 > Não é possível alterar uma transação `cancelled` sem primeiro mudar o `status`.
@@ -1141,9 +1144,24 @@ Atualiza uma transação. `:id` = UUID da transação.
 > [!WARNING]
 > Não é possível mudar a forma de pagamento de cartão de crédito para outra.
 
+**Resposta com `total_invoice: true` (Status 200):**
+```json
+{
+  "message": "Transação alterada com sucesso!",
+  "item": {
+    "totalValueSum": 450.00,
+    "newBalance": 3550.00,
+    "allTransactionsUpdateResult": [
+      { "id": "uuid", "status": "completed", "payment_date": "2024-08-15", "bank_account_id": "uuid" }
+    ]
+  }
+}
+```
+
 **Erros de negócio:**
 | Status | Situação / Mensagem                                                                                                |
 | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| `400`  | A transação informada não possui fatura vinculada                                                                  |
 | `400`  | Conta bancária sem saldo suficiente para realizar a transação                                                      |
 | `400`  | Não é possível definir uma data de pagamento junto com status cancelled                                            |
 | `400`  | Conta bancária, categoria, método de pagamento ou contraparte alterada não encontrada ou pertence a outra carteira |

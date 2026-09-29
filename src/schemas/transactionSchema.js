@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { boolean, z } from 'zod';
 
 // Regras individuais dos campos
 const walletIdValidation = z.string().uuid('ID da carteira inválido');
@@ -67,6 +67,7 @@ export const updateSchema = z.object({
   }),
   body: createSchema.shape.body.partial().extend({
     all_installments: booleanQueryValidation,
+    total_invoice: booleanQueryValidation,
   }),
 });
 
@@ -122,8 +123,8 @@ export const findSchema = z.object({
         'pay_method_name',
         'counterparty_name',
         'creator_user_name',
-      ], 
-      { message: 'Tipo inválido. Deve ser algum dos nomes de colunas'}).optional(),
+      ],
+      { message: 'Tipo inválido. Deve ser algum dos nomes de colunas' }).optional(),
     order_dir: z.enum(['ASC', 'DESC'], { message: "Tipo inválido. Deve ser 'ASC' ou 'DESC'" }).optional(),
     page: z.coerce.number().positive('O valor deve ser maior que zero').optional(),
     limit: z.coerce.number().int('Deve ser um número inteiro').min(20, 'O valor mínimo é 20').max(100, 'O valor máximo é 100').optional(),

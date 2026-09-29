@@ -1,6 +1,6 @@
 import { installmentsList, validadeInvoiceIdHelper } from './updateTransactionsHelper.js';
 import { createUpdateQuery } from '../transactionsBuilders.js';
-import { updateBankAccountBalanceHelper, bankAccountHelper, revertingBalance, calculateBalance } from '../transactionsHelpers.js';
+import { updateBankAccountBalanceHelper, bankAccountHelper, revertingBalance, calculateBalance, todayHelper } from '../transactionsHelpers.js';
 import AppError from '../../../../errors/AppError.js';
 
 export const updateCreditCardLimitHelper = async ({ payMethodId, delta, client }) => {
@@ -336,4 +336,65 @@ export const updateForCreditCardHelper = async ({
   }
 
   return payload;
+};
+
+
+export const payTotalInvoiceCreditCardHelper = async ({
+  client,
+  finalBankAccountId,
+  currentTransaction,
+}) => {
+  if (!currentTransaction.invoice_id) {
+    throw new AppError('A transação informada não possui fatura vinculada', 400);
+  }
+
+  const invoiceTransactions = await client.query(
+    'SELECT * FROM transactions WHERE invoice_id = $1',
+    [currentTransaction.invoice_id],
+  );
+
+  let allTransactionsUpdateResult = [];
+  let totalValueSum = 0;
+
+  const { today } = todayHelper();
+
+  for (const transaction of invoiceTransactions.rows) {
+    if (transaction.status !== 'completed' && transaction.status !== 'cancelled') {
+      totalValueSum += Number(transaction.value);
+
+      // Update das transações
+      const updateTransaction = await client.query(
+        `UPDATE transactions 
+         SET status = 'completed',
+         payment_date = $1,
+         bank_account_id = $2
+         WHERE id = $3
+         RETURNING *`,
+        [today, finalBankAccountId, transaction.id],
+      );
+
+      allTransactionsUpdateResult.push(updateTransaction.rows[0]);
+    }
+  }
+
+  // update saldo da conta
+  const bankAccount = await bankAccountHelper(finalBankAccountId, client);
+  const newBalance = calculateBalance(bankAccount.accountBalance, totalValueSum, 'expenses');
+
+  if (newBalance < 0 && bankAccount.accountAllowNegative === false) throw new AppError('Conta bancária sem saldo suficiente para realizar a transação', 400);
+
+  await updateBankAccountBalanceHelper(finalBankAccountId, newBalance, client);
+
+  // update saldo fatura
+  await updateCreditCardLimitHelper({
+    payMethodId: currentTransaction.pay_methods_id,
+    delta: -Number(totalValueSum),
+    client,
+  });
+
+  return {
+    totalValueSum,
+    newBalance,
+    allTransactionsUpdateResult,
+  };
 };

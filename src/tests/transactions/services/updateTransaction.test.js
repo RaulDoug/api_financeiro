@@ -2518,6 +2518,219 @@ describe('TransactionServices - update()', () => {
         expect(cardCheck.rows[0].used_credit_limit).toBe(150.00);
       });
     });
+
+    describe('Cartão de Crédito - Pagamento de Transação Única e Estorno', () => {
+      async function singleCreditCardPending(value = 100.00, purchaseDate = '2026-07-10') {
+        const payload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          value,
+          description: 'Compra no cartão de crédito à vista',
+          purchase_date: purchaseDate,
+        };
+
+        return await transactionService.create(payload);
+      }
+
+      test('SUCESSO - Pagar compra única no cartão (pending -> completed): debita da conta bancária e libera limite no cartão', async () => {
+        const singleCard = await singleCreditCardPending(100.00);
+
+        // Limite usado antes do pagamento: 100.00
+        const cardBefore = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardBefore.rows[0].used_credit_limit).toBe(100.00);
+
+        // Saldo antes do pagamento: 400.00
+        const balanceBefore = await accountBalance(testData.bankAccountId);
+        expect(balanceBefore.rows[0].balance).toBe(400.00);
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: singleCard.id,
+          status: 'completed',
+        };
+
+        const result = await transactionService.update(payload);
+        expect(result.status).toBe('completed');
+        expect(result.payment_date).toBeDefined();
+
+        // Saldo após pagamento: 400.00 - 100.00 = 300.00
+        const balanceAfter = await accountBalance(testData.bankAccountId);
+        expect(balanceAfter.rows[0].balance).toBe(300.00);
+
+        // Limite usado após pagamento: 100.00 - 100.00 = 0.00
+        const cardAfter = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardAfter.rows[0].used_credit_limit).toBe(0.00);
+      });
+
+      test('SUCESSO - Estornar pagamento de compra única (completed -> pending): estorna saldo na conta e recompromete limite no cartão', async () => {
+        const singleCard = await singleCreditCardPending(100.00);
+
+        // Paga primeiro
+        await transactionService.update({
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: singleCard.id,
+          status: 'completed',
+        });
+
+        // Estorna para pending
+        const payloadEstorno = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: singleCard.id,
+          status: 'pending',
+          due_date: '2026-08-09',
+        };
+
+        const result = await transactionService.update(payloadEstorno);
+        expect(result.status).toBe('pending');
+        expect(result.payment_date).toBeNull();
+
+        // Saldo volta para 400.00
+        const balanceReverted = await accountBalance(testData.bankAccountId);
+        expect(balanceReverted.rows[0].balance).toBe(400.00);
+
+        // Limite recomprometido para 100.00
+        const cardRecomprometido = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardRecomprometido.rows[0].used_credit_limit).toBe(100.00);
+      });
+    });
+
+    describe('Cartão de Crédito - Pagamento de Fatura Completa (total_invoice)', () => {
+      async function singleCreditCardPending(value = 100.00, purchaseDate = '2026-07-10') {
+        const payload = {
+          wallet_id: testData.walletId,
+          creator_user_id: testData.userId,
+          bank_account_id: testData.bankAccountId,
+          category_id: testData.categorieExpenseId,
+          pay_methods_id: testData.payMethodCreditCardId,
+          counterparty_id: testData.counterpartyPayerId,
+          type: 'expenses',
+          value,
+          description: 'Compra no cartão de crédito',
+          purchase_date: purchaseDate,
+        };
+
+        return await transactionService.create(payload);
+      }
+
+      test('SUCESSO - Pagar fatura completa quita todas as compras pendentes do mesmo invoice_id, debita saldo e libera limite total', async () => {
+        // Cria 2 compras no mesmo ciclo de fatura (2026/08)
+        const purchase1 = await singleCreditCardPending(60.00, '2026-07-10');
+        const purchase2 = await singleCreditCardPending(90.00, '2026-07-15');
+
+        expect(purchase1.invoice_id).toBe(purchase2.invoice_id);
+
+        // Limite usado: 60 + 90 = 150.00
+        const cardBefore = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardBefore.rows[0].used_credit_limit).toBe(150.00);
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: purchase1.id,
+          status: 'completed',
+          total_invoice: true,
+          bank_account_id: testData.bankAccountId,
+        };
+
+        const result = await transactionService.update(payload);
+        expect(result.totalValueSum).toBe(150.00);
+        expect(result.newBalance).toBe(250.00); // 400 - 150
+        expect(result.allTransactionsUpdateResult).toHaveLength(2);
+
+        // Ambas as compras devem estar com status completed
+        const invoiceCheck = await pool.query('SELECT id, status, payment_date FROM transactions WHERE invoice_id = $1', [purchase1.invoice_id]);
+        expect(invoiceCheck.rows.every(t => t.status === 'completed')).toBe(true);
+
+        // Saldo debitado
+        const balanceCheck = await accountBalance(testData.bankAccountId);
+        expect(balanceCheck.rows[0].balance).toBe(250.00);
+
+        // Limite liberado
+        const cardCheck = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardCheck.rows[0].used_credit_limit).toBe(0.00);
+      });
+
+      test('SUCESSO - Pagar fatura ignora compras já canceladas na mesma fatura', async () => {
+        const purchase1 = await singleCreditCardPending(50.00, '2026-07-10');
+        const purchase2 = await singleCreditCardPending(70.00, '2026-07-12');
+        const purchaseCancelled = await singleCreditCardPending(30.00, '2026-07-14');
+
+        // Cancela a compra 3
+        await transactionService.update({
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: purchaseCancelled.id,
+          status: 'cancelled',
+        });
+
+        // Limite usado antes da quitação: 50 + 70 = 120.00 (a cancelada já liberou os 30)
+        const cardBefore = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardBefore.rows[0].used_credit_limit).toBe(120.00);
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: purchase1.id,
+          status: 'completed',
+          total_invoice: true,
+          bank_account_id: testData.bankAccountId,
+        };
+
+        const result = await transactionService.update(payload);
+        expect(result.totalValueSum).toBe(120.00);
+        expect(result.newBalance).toBe(280.00); // 400 - 120
+        expect(result.allTransactionsUpdateResult).toHaveLength(2);
+
+        // Limite zerado
+        const cardCheck = await pool.query('SELECT used_credit_limit FROM pay_methods WHERE id = $1', [testData.payMethodCreditCardId]);
+        expect(cardCheck.rows[0].used_credit_limit).toBe(0.00);
+      });
+
+      test('FALHA - Pagar fatura recusa se a conta bancária não tiver saldo suficiente e não permite negativo', async () => {
+        // Conta tem 400.00. Criar compra de 500.00
+        const purchaseBig = await singleCreditCardPending(500.00, '2026-07-10');
+
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: purchaseBig.id,
+          status: 'completed',
+          total_invoice: true,
+          bank_account_id: testData.bankAccountId,
+        };
+
+        await expect(transactionService.update(payload))
+          .rejects
+          .toThrow('Conta bancária sem saldo suficiente para realizar a transação');
+
+        // Saldo não foi alterado
+        const balanceCheck = await accountBalance(testData.bankAccountId);
+        expect(balanceCheck.rows[0].balance).toBe(400.00);
+      });
+
+      test('FALHA - Tentar pagar fatura (total_invoice) em transação sem fatura vinculada (não-cartão) retorna erro', async () => {
+        const payload = {
+          user_id: testData.userId,
+          wallet_id: testData.walletId,
+          transaction_id: testData.baseTransactionId, // Despesa/receita normal, invoice_id null
+          status: 'completed',
+          total_invoice: true,
+          bank_account_id: testData.bankAccountId,
+        };
+
+        await expect(transactionService.update(payload))
+          .rejects
+          .toThrow('A transação informada não possui fatura vinculada');
+      });
+    });
   });
 
   describe('Transações recorrentes - is_recurrent e installments_group_id', () => {

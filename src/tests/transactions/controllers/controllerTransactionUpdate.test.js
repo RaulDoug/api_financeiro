@@ -107,6 +107,30 @@ describe('PATCH /api/transaction/update/:id', () => {
         item: { rows: { id: '1', invoice_id: 'inv-1' } },
       });
     });
+
+    test('[UPD-C04] Deve retornar status 200 quando passado no body total_invoice: true com resultado de quitação da fatura', async () => {
+      TransactionServices.prototype.update.mockResolvedValueOnce({
+        totalValueSum: 150.00,
+        newBalance: 250.00,
+        allTransactionsUpdateResult: [{ id: '1', status: 'completed' }, { id: '2', status: 'completed' }],
+      });
+
+      const response = await request(app)
+        .patch(`/api/transaction/update/${mockTransactionId}`)
+        .set('Authorization', authHeader)
+        .set('x-wallet-id', walletId)
+        .send({ status: 'completed', total_invoice: true });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        message: 'Transação alterada com sucesso!',
+        item: {
+          totalValueSum: 150.00,
+          newBalance: 250.00,
+          allTransactionsUpdateResult: [{ id: '1', status: 'completed' }, { id: '2', status: 'completed' }],
+        },
+      });
+    });
   });
 
   describe('ERROS', () => {

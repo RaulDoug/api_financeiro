@@ -23,7 +23,7 @@ import {
 } from './helpers/update/updateTransactionsHelper.js';
 import { updateTransferTransactionHelper } from './helpers/update/updateTransferTransactionHelper.js';
 import { revertTransferToRegularTransactionHelper } from './helpers/update/revertingTransferToRegularTransactionHelper.js';
-import { updateCreditCardLimitHelper, updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
+import { payTotalInvoiceCreditCardHelper, updateCreditCardLimitHelper, updateForCreditCardHelper, updateRevertingCreditCardHelper } from './helpers/update/updateCreditCardHelper.js';
 import { updateAllRecurrentTransactionHelper, updateRecurrentTransactionHelper } from './helpers/update/updateRecurrentTransactionHelper.js';
 import { parse, isValid, isAfter } from 'date-fns';
 import AppError from '../../errors/AppError.js';
@@ -57,7 +57,7 @@ export default class TransactionServices {
     }
 
     // Inicia a transação com o banco de dados para garantir que todas as operações sejam atômicas
-    const client = await pool.connect(); 
+    const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
@@ -244,6 +244,7 @@ export default class TransactionServices {
       fees,
       assessment,
       all_installments,
+      total_invoice,
       // eslint-disable-next-line no-unused-vars
       destiny_bank_account_id,
       ...updateFields
@@ -343,7 +344,7 @@ export default class TransactionServices {
       if (newFinalValue !== finalValue) {
         finalValue = newFinalValue;
       }
-      
+
       // Função para montar a query de UPDATE
       let query;
       let payload = {
@@ -357,6 +358,18 @@ export default class TransactionServices {
       if (finalPaymentDate !== currentTransaction.payment_date) { payload.payment_date = finalPaymentDate; }
       if (finalValue !== currentTransaction.value) { payload.value = finalValue; }
 
+      // Pagamento de fatura de cartão de crédito
+      if (data.total_invoice === true && finalStatus === 'completed') {
+        const result = await payTotalInvoiceCreditCardHelper({
+          client,
+          finalBankAccountId,
+          currentTransaction,
+        });
+
+        await client.query('COMMIT');
+
+        return result;
+      }
 
       // Execução no banco
       for (const i of balanceOperations) {
@@ -365,7 +378,7 @@ export default class TransactionServices {
         // Mudança para transferência
         if (finalType === 'transfers') {
           const result = await updateTransferTransactionHelper(
-            {i, client, payload, transaction_id, finalStatus},
+            { i, client, payload, transaction_id, finalStatus },
           );
 
           await client.query('COMMIT');
@@ -379,7 +392,7 @@ export default class TransactionServices {
 
         if (validationTransferType && validationFinalType) {
           const result = await revertTransferToRegularTransactionHelper(
-            {i, client, payload, transaction_id, finalStatus},
+            { i, client, payload, transaction_id, finalStatus },
           );
 
           await client.query('COMMIT');
@@ -461,7 +474,7 @@ export default class TransactionServices {
         // Update de todas as transações recorrentes que não são cartão de crédito
         if (all_installments === true && validatePayMethod.rows[0].credit_card === false) {
           allInstallmentsUpdateResult = await updateAllRecurrentTransactionHelper(
-            {client, payload, i, allInstallmentsUpdateResult, transaction_id},
+            { client, payload, i, allInstallmentsUpdateResult, transaction_id },
           );
 
           await client.query('COMMIT');
@@ -478,7 +491,7 @@ export default class TransactionServices {
 
       query = createUpdateQuery(payload, transaction_id);
       const result = await client.query(query);
-      
+
       await client.query('COMMIT');
 
       return result.rows[0];
@@ -576,7 +589,7 @@ export default class TransactionServices {
 
         if (all_installments === true) {
           const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
-          
+
           if (payMethodValues.rows[0].credit_card === true) {
             const totalToRevert = allTransactions.rows
               .filter(t => t.status !== 'cancelled')
@@ -641,7 +654,7 @@ export default class TransactionServices {
           if (payMethodValues.rows[0].credit_card === true) {
             if (remainderTransactions.rows.length > 0 && redistribute === true) {
               const newInstallmentValue = Number((fullValue / remainderTransactions.rows.length).toFixed(2));
-              
+
               for (const transaction of remainderTransactions.rows) {
                 if (transaction.status !== 'completed') {
                   await client.query(
@@ -670,7 +683,7 @@ export default class TransactionServices {
         }
       } else { // Exclusão de transação simples
         const payMethodValues = await payMethodValuesHelper(transactionValues.pay_methods_id);
-        
+
         if (payMethodValues.rows[0].credit_card === true && transactionValues.status !== 'cancelled') {
           await updateCreditCardLimitHelper({
             payMethodId: transactionValues.pay_methods_id,
@@ -706,7 +719,7 @@ export default class TransactionServices {
   }
 
   async find(data) {
-    const { user_id, wallet_id, order_by, order_dir, page = 1, limit = 20, ...filterFields } =  data;
+    const { user_id, wallet_id, order_by, order_dir, page = 1, limit = 20, ...filterFields } = data;
 
     const pageNumber = Math.max(1, Number(page) || 1);
     const limitNumber = Math.max(1, Math.min(100, Number(limit) || 20)); // Limite máximo 100
@@ -933,7 +946,7 @@ export default class TransactionServices {
       creator_user_name: 'u.name',
     };
 
-    if (order_by !== undefined ) {
+    if (order_by !== undefined) {
       const targetColumn = sortFieldsMap[order_by];
       if (!targetColumn) {
         throw new AppError('Parâmetro de ordenação inválido');
@@ -958,10 +971,10 @@ export default class TransactionServices {
 
     // Verificação de FKs nas tabelas relacionadas
     const fkFieldsAndTables = [
-      {fieldId: 'bank_account_id', table: 'bank_accounts'},
-      {fieldId: 'category_id', table: 'categories'},
-      {fieldId: 'pay_methods_id', table: 'pay_methods'},
-      {fieldId: 'counterparty_id', table: 'counterparties'},
+      { fieldId: 'bank_account_id', table: 'bank_accounts' },
+      { fieldId: 'category_id', table: 'categories' },
+      { fieldId: 'pay_methods_id', table: 'pay_methods' },
+      { fieldId: 'counterparty_id', table: 'counterparties' },
     ];
 
     for (const field of fkFieldsAndTables) {
@@ -974,10 +987,10 @@ export default class TransactionServices {
       }
     }
 
-    
+
 
     if (filterFields.creator_user_id !== undefined) {
-      const usersIds = Array.isArray(filterFields.creator_user_id) ?  filterFields.creator_user_id : [filterFields.creator_user_id];
+      const usersIds = Array.isArray(filterFields.creator_user_id) ? filterFields.creator_user_id : [filterFields.creator_user_id];
       const creatorUserValidate = await pool.query(
         'SELECT * FROM users_wallets WHERE user_id = ANY($1::uuid[]) AND wallet_id = $2',
         [usersIds, wallet_id],
@@ -1156,14 +1169,14 @@ export default class TransactionServices {
       }
 
       if (result.rows.length === 0) {
-        return { 
+        return {
           rows: [],
           pagination,
           message: 'Nenhuma transação localizada para os filtros informados',
         };
       }
 
-      return { 
+      return {
         rows: result.rows,
         pagination,
         totals: totals || { incomings: 0, expenses: 0 },
@@ -1175,6 +1188,6 @@ export default class TransactionServices {
       client.release();
     }
 
-    
+
   }
 }

@@ -599,6 +599,7 @@ A tabela `categories` tem campo `type` que é `incomings` ou `expenses`. O front
 | Campo especial     | Tipo    | Notas                                           |
 | ------------------ | ------- | ----------------------------------------------- |
 | `all_installments` | boolean | Se `true`, aplica em todas as parcelas do grupo |
+| `total_invoice`    | boolean | Se `true` e `status: "completed"`, quita todas as compras pendentes da fatura (`invoice_id`), debita da conta informada e recompõe o limite do cartão |
 
 ### 6.6 Exclusão de Transação
 
