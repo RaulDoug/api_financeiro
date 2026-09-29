@@ -1271,18 +1271,20 @@ Resumo financeiro da carteira: entradas, saídas, pendências e projeção do m�
   "pendingIncomes": 1200.00,
   "pendingExpenses": 650.00,
   "totalBalance": 8500.00,
-  "monthForecast": 9050.00
+  "monthForecast": 3750.00,
+  "monthForecastFinal": 9050.00
 }
 ```
 
-| Campo               | Descrição                                                   |
-| ------------------- | ----------------------------------------------------------- |
-| `completedIncomes`  | Total de entradas pagas no período                          |
-| `completedExpenses` | Total de despesas pagas no período                          |
-| `pendingIncomes`    | Total de entradas pendentes no período                      |
-| `pendingExpenses`   | Total de despesas pendentes no período                      |
-| `totalBalance`      | Saldo total somado de todas as contas                       |
-| `monthForecast`     | Projeção: `totalBalance + pendingIncomes - pendingExpenses` |
+| Campo                | Descrição                                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `completedIncomes`   | Total de entradas pagas no período                                                                                           |
+| `completedExpenses`  | Total de despesas pagas no período                                                                                           |
+| `pendingIncomes`     | Total de entradas pendentes no período                                                                                       |
+| `pendingExpenses`    | Total de despesas pendentes no período                                                                                       |
+| `totalBalance`       | Saldo total somado de todas as contas                                                                                        |
+| `monthForecast`      | Sobra Operacional do Mês (apenas transações): `(completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses)`        |
+| `monthForecastFinal` | Saldo Final Projetado em Conta (considera o saldo em conta): `totalBalance + pendingIncomes - pendingExpenses`                |
 
 ---
 

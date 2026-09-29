@@ -60,6 +60,9 @@ A página mais acessada do sistema. Ela deve responder à pergunta principal do 
     *   Saldo Atual (Soma do saldo de todas as contas vinculadas à carteira ativa).
     *   Receitas (Mês Atual).
     *   Despesas (Mês Atual).
+    *   Previsão de Sobra / Saldo Final:
+        *   *Sobra Operacional do Mês* (`monthForecast`): resultado apenas das movimentações do mês (Receitas - Despesas).
+        *   *Saldo Final Projetado em Conta* (`monthForecastFinal`): projeção do saldo em conta considerando o saldo atual e pendências a pagar/receber (pode ser alternado via seletor/toggle ou exibido como card dedicado).
     *   Faturas de Cartão (Soma de faturas abertas).
 *   **Ações Rápidas (Botões evidentes e destacados):** `+ Nova Receita`, `+ Nova Despesa`, `⇄ Transferência`.
 *   **Gráficos Principais:**

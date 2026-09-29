@@ -257,18 +257,20 @@ Sem filtros, usa o mês corrente automaticamente.
   "pendingIncomes": 1200.00,
   "pendingExpenses": 650.00,
   "totalBalance": 8500.00,
-  "monthForecast": 9050.00
+  "monthForecast": 3750.00,
+  "monthForecastFinal": 9050.00
 }
 ```
 
 **Mapeamento para os cards:**
 
-| Card                   | Campo da API        | Cor sugerida | Ícone |
-| ---------------------- | ------------------- | ------------ | ----- |
-| Saldo Total            | `totalBalance`      | Azul         | 🏦     |
-| Entradas Realizadas    | `completedIncomes`  | Verde        | ↑     |
-| Saídas Realizadas      | `completedExpenses` | Vermelho     | ↓     |
-| Sobra Projetada do Mês | `monthForecast`     | Azul/Roxo    | 📊     |
+| Card                             | Campo da API         | Cor sugerida | Ícone |
+| -------------------------------- | -------------------- | ------------ | ----- |
+| Saldo Total                      | `totalBalance`       | Azul         | 🏦     |
+| Entradas Realizadas              | `completedIncomes`   | Verde        | ↑     |
+| Saídas Realizadas                | `completedExpenses`  | Vermelho     | ↓     |
+| Sobra do Mês (Fluxo Operacional) | `monthForecast`      | Azul/Roxo    | 📊     |
+| Saldo Final Projetado (Em Conta) | `monthForecastFinal` | Roxo/Verde   | 💰     |
 
 **Cards secundários (opcionais, exibir se houver espaço):**
 
@@ -277,9 +279,11 @@ Sem filtros, usa o mês corrente automaticamente.
 | Pendente a Receber | `pendingIncomes`  | Entradas `pending` no mês |
 | Pendente a Pagar   | `pendingExpenses` | Saídas `pending` no mês   |
 
-> **Lógica do `monthForecast`:**  
-> `totalBalance + pendingIncomes - pendingExpenses`  
-> O back-end calcula usando o mês corrente, independente dos filtros de `startDate`/`endDate`.
+> **Lógica dos Indicadores de Previsão:**  
+> - **`monthForecast` (Sobra Operacional do Mês):** `(completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses)`. Considera unicamente as movimentações (receitas e despesas) do período selecionado, sem misturar com saldos anteriores.  
+> - **`monthForecastFinal` (Saldo Final Projetado em Conta):** `totalBalance + pendingIncomes - pendingExpenses`. Considera o saldo atual acumulado em todas as contas e projeta quanto restará em conta após a quitação das pendências.  
+>  
+> **💡 Dica de UI/UX para o Front-End:** Pode ser implementado com um seletor/toggle no card de projeção (ex: *"Apenas transações deste mês"* vs *"Considerando saldo em conta"*) ou exibindo o Saldo Final Projetado como destaque principal e a Sobra Operacional do Mês como subtítulo.
 
 ### 5.2 Linha 2 — Gráficos Principais
 

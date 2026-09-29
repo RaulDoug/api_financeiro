@@ -24,6 +24,7 @@ export default class DashboardController {
         pendingExpenses: pendingExpenses.total,
         totalBalance: totalBalance.total,
         monthForecast: monthForecast.projected_balance,
+        monthForecastFinal: monthForecast.projected_final_balance,
       });
 
     } catch (error) {
@@ -42,9 +43,9 @@ export default class DashboardController {
       const accountBalances = await dashboardService.getAccountBalances(walletId);
       const totalBalances = await dashboardService.getTotalAccountBalance(walletId);
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         accountBalances: accountBalances,
-        totalBalances:  totalBalances.total,
+        totalBalances: totalBalances.total,
       });
     } catch (error) {
       if (error instanceof AppError) {
