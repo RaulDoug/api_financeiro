@@ -359,7 +359,7 @@ export default class TransactionServices {
       if (finalValue !== currentTransaction.value) { payload.value = finalValue; }
 
       // Pagamento de fatura de cartão de crédito
-      if (data.total_invoice === true && finalStatus === 'completed') {
+      if (total_invoice === true && finalStatus === 'completed') {
         const result = await payTotalInvoiceCreditCardHelper({
           client,
           finalBankAccountId,
