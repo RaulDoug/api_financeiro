@@ -23,7 +23,7 @@ export default class DashboardService {
     };
   }
 
-  async getCompletedExpenses(walletId, filters = {} ) {
+  async getCompletedExpenses(walletId, filters = {}) {
     const { startDate, endDate } = resolveDateRange(filters);
 
     const query = `
@@ -117,11 +117,14 @@ export default class DashboardService {
     const pendingIncomes = (await this.getPendingIncomes(walletId, filters)).total;
     const completedExpenses = (await this.getCompletedExpenses(walletId, filters)).total;
     const pendingExpenses = (await this.getPendingExpenses(walletId, filters)).total;
+    const totalBalance = (await this.getTotalAccountBalance(walletId)).total;
 
     const projectedBalance = (completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses);
+    const projectedFinalBalance = totalBalance + pendingIncomes - pendingExpenses;
 
     return {
       projected_balance: Number(projectedBalance.toFixed(2)),
+      projected_final_balance: Number(projectedFinalBalance.toFixed(2)),
     };
   }
 
@@ -165,7 +168,7 @@ export default class DashboardService {
 
   async getIncomeVsExpense(walletId, filters = {}) {
     const targetYear = filters.year || new Date().getFullYear();
-    
+
     const query = `
       SELECT 
         months.month,
@@ -310,7 +313,7 @@ export default class DashboardService {
         });
       }
     }
-    
+
     return {
       total_overdue: totalOverdue,
       items: overdueArray,
