@@ -3,7 +3,7 @@ import { createUpdateQuery } from '../transactionsBuilders.js';
 import { updateBankAccountBalanceHelper, bankAccountHelper, revertingBalance, calculateBalance } from '../transactionsHelpers.js';
 import AppError from '../../../../errors/AppError.js';
 
-export const updateCreditCardLimitHelper = async ({ payMethodId, delta, client}) => {
+export const updateCreditCardLimitHelper = async ({ payMethodId, delta, client }) => {
   if (delta === 0) return;
 
   const payMethodQuery = await client.query(
@@ -42,8 +42,8 @@ export const updateRevertingCreditCardHelper = async ({
 }) => {
   const { invoiceYear, invoiceMonth, payMethodDueDay } = validadeInvoiceIdHelper(validatePayMethod.rows[0].due_day, validatePayMethod.rows[0].closing_day, finalPurchaseDate, currentTransaction);
   const { allInstallmentsList } = await installmentsList(transaction_id, client);
-  const dateStr = finalPurchaseDate instanceof Date 
-    ? finalPurchaseDate.toISOString().split('T')[0] 
+  const dateStr = finalPurchaseDate instanceof Date
+    ? finalPurchaseDate.toISOString().split('T')[0]
     : String(finalPurchaseDate).split('T')[0];
   const [purchaseYear, purchaseMonth] = dateStr.split('-');
 
@@ -118,7 +118,7 @@ export const updateForCreditCardHelper = async ({
 
     let accountBalanceValue = Number(accountBalance);
 
-    // Calulando juros e multas
+    // Calculando juros e multas
     const feesAndAssessment = Number(feesToCalculate) + Number(assessmentToCalculate);
     const feesCalculatedForInstallments = Number(feesAndAssessment) / Number(allInstallmentsList.length);
 
@@ -204,6 +204,14 @@ export const updateForCreditCardHelper = async ({
 
       if (accountBalanceValue < 0 && accountAllowNegative === false) {
         throw new Error('Conta bancária sem saldo suficiente para realizar a transação');
+      }
+
+      if (currentTransaction.status !== 'completed' && finalStatus === 'completed') {
+        await updateCreditCardLimitHelper({
+          payMethodId: currentTransaction.pay_methods_id,
+          delta: -totalOldValue,
+          client,
+        });
       }
 
       await updateBankAccountBalanceHelper(i.accountId, Number(accountBalanceValue), client);
@@ -292,10 +300,27 @@ export const updateForCreditCardHelper = async ({
     const impactoNovo = finalStatus === 'cancelled' ? 0 : Number(fieldsToUpdate.value || currentTransaction.value);
 
     const delta = impactoNovo - impactoAntigo;
-    
+
     await updateCreditCardLimitHelper({
       payMethodId: currentTransaction.pay_methods_id,
       delta,
+      client,
+    });
+  }
+
+  // Pagamento de parcela individual ou compra à vista (libera limite)
+  if (currentTransaction.status !== 'completed' && finalStatus === 'completed') {
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta: -Number(fieldsToUpdate.value || currentTransaction.value),
+      client,
+    });
+  }
+  // Estorno do pagamento (recompromete limite se desmarcar como paga)
+  if (currentTransaction.status === 'completed' && finalStatus !== 'completed') {
+    await updateCreditCardLimitHelper({
+      payMethodId: currentTransaction.pay_methods_id,
+      delta: Number(fieldsToUpdate.value || currentTransaction.value),
       client,
     });
   }
