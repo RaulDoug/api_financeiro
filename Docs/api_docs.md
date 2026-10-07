@@ -34,6 +34,8 @@ x-wallet-id: <uuid-da-carteira>
 | ---------------- | ------ | ------------------------------------------- | ---- | ----------- |
 | Auth             | POST   | `/api/auth/register`                        | ❌    | ❌           |
 | Auth             | POST   | `/api/auth/login`                           | ❌    | ❌           |
+| Auth             | GET    | `/api/auth/find-all`                        | ✅    | ✅           |
+| Auth             | GET    | `/api/auth/find-by-email/:id`               | ✅    | ✅           |
 | Wallet           | GET    | `/api/wallet`                               | ✅    | ❌           |
 | Wallet           | POST   | `/api/wallet/register`                      | ✅    | ❌           |
 | Wallet           | PATCH  | `/api/wallet/update/:id`                    | ✅    | ❌           |
@@ -111,8 +113,7 @@ Cria um novo usuário.
 **Erros:**
 | Status | Mensagem                                                                             |
 | ------ | ------------------------------------------------------------------------------------ |
-| `400`  | `"Email já cadastrado"`                                                              |
-| `422`  | Erros de validação do schema                                                         |
+| `400`  | `"Email já cadastrado"` ou erros de validação do schema Zod                          |
 | `429`  | `"Muitas contas criadas a partir deste IP. Tente novamente em 1 hora."` (Rate Limit) |
 | `500`  | `"Erro interno do servidor"`                                                         |
 
@@ -143,13 +144,88 @@ Autentica o usuário e retorna o JWT.
 ```
 
 > [!TIP]
-> O `token` expira em **1 dia**. O `creator_user_id` é injetado automaticamente pelo back-end via token — o front-end não precisa enviá-lo.
+> O `token` expira em **30 dias** (`30d`). O `creator_user_id` é injetado automaticamente pelo back-end via token — o front-end não precisa enviá-lo.
 
 **Erros:**
 | Status | Mensagem                                                                  |
 | ------ | ------------------------------------------------------------------------- |
 | `400`  | `"E-mail ou senha inválidos"`                                             |
 | `429`  | `"Muitas tentativas de login neste IP, tente novamente após 15 minutos."` |
+
+---
+
+### `GET /api/auth/find-all`
+Retorna uma lista resumida com o ID e e-mail de todos os usuários cadastrados no sistema.
+
+> [!NOTE]
+> Exige autenticação e o header de carteira ativa.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+- `x-wallet-id: <uuid-da-carteira>`
+
+**Resposta `200`:**
+```json
+{
+  "findAll": {
+    "users": [
+      {
+        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "email": "joao@email.com"
+      }
+    ]
+  }
+}
+```
+
+**Erros:**
+| Status | Mensagem                                             |
+| ------ | ---------------------------------------------------- |
+| `400`  | `"ID da carteira ou usuário faltante na requisição"` |
+| `401`  | `"Token inválido ou expirado."`                      |
+| `403`  | `"Acesso negado a esta carteira."`                   |
+| `500`  | `"Erro interno do servidor"`                         |
+
+---
+
+### `GET /api/auth/find-by-email/:id`
+Busca um usuário no sistema a partir do seu endereço de e-mail via query string.
+
+> [!NOTE]
+> O parâmetro `:id` na rota pode ser qualquer identificador de referência; a consulta é executada a partir do parâmetro `email` na query string.
+
+**Headers:**
+- `Authorization: Bearer <token>`
+- `x-wallet-id: <uuid-da-carteira>`
+
+**Query Params:**
+| Parâmetro | Tipo   | Obrigatório | Descrição                |
+| --------- | ------ | ----------- | ------------------------ |
+| `email`   | string | Sim         | E-mail válido do usuário |
+
+**URL de exemplo:**
+```
+GET /api/auth/find-by-email/1?email=joao@email.com
+```
+
+**Resposta `200`:**
+```json
+{
+  "findUser": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "joao@email.com"
+  }
+}
+```
+
+**Erros:**
+| Status | Mensagem                                                                  |
+| ------ | ------------------------------------------------------------------------- |
+| `400`  | `"ID da carteira ou usuário faltante na requisição"` ou erro Zod de email |
+| `401`  | `"Token inválido ou expirado."`                                           |
+| `403`  | `"Acesso negado a esta carteira."`                                        |
+| `404`  | `"Nenhum usuário localizado com este email"`                              |
+| `500`  | `"Erro interno do servidor"`                                              |
 
 ---
 
@@ -781,7 +857,7 @@ Cria método de pagamento. Se for cartão de crédito (`credit_card: true`), os 
 | `color`            | string, mín. 2, máx. 20          | ❌           | opcional / `null`                  |
 
 > [!WARNING]
-> Se `credit_card: true` e qualquer um dos 5 campos obrigatórios estiver ausente, a API retorna `422` com a mensagem: *"Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão"*
+> Se `credit_card: true` e qualquer um dos 5 campos obrigatórios estiver ausente, a API retorna `400` (validação Zod) com a mensagem: *"Para cadastro de cartão de crédito deve preencher os campos de conta bancária, dia de vencimento, dia de fechamento, os ultimos 4 digitos e o limite do cartão"*
 
 ---
 

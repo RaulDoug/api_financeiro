@@ -84,6 +84,7 @@ Content-Type: application/json
 | Configurações > Categorias           | `/settings/categories`     | 🏷️     |
 | Configurações > Contrapartes         | `/settings/counterparties` | 🤝     |
 | Configurações > Métodos de Pagamento | `/settings/pay-methods`    | 💳     |
+| Configurações > Membros e Convites   | `/settings/members`        | 👥     |
 
 ### Estrutura do Layout (App Shell)
 
@@ -911,6 +912,18 @@ Acessível via Configurações. Permite renomear e excluir a carteira ativa.
 > Editar: `owner` ou `editor`  
 > Excluir: apenas `owner`
 
+### 11.5 Convites e Membros da Carteira
+
+Permite compartilhar a carteira ativa com outros usuários e gerenciar convites pendentes.
+
+| Ação                      | Endpoint                           | Método | Parâmetros / Headers                                                                                  |
+| ------------------------- | ---------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| Enviar Convite            | `/api/wallet-invite/send-invite`   | POST   | `x-wallet-id` + query params: `inviter_user_id`, `invited_email`, `role` (`'viewer'` ou `'editor'`)    |
+| Listar Convites Recebidos | `/api/wallet-invite/find-invites`  | GET    | Apenas `Authorization` (filtra automaticamente pelo e-mail do JWT)                                    |
+| Aceitar/Rejeitar Convite  | `/api/wallet-invite/accept-invite` | PATCH  | Apenas `Authorization` + query params: `accept` (`'true'` ou `'false'`), `wallet_id`, `invite_id`      |
+
+> **Nota de Permissão:** Apenas o `owner` da carteira ativa pode enviar convites.
+
 ---
 
 ## 12. Mapeamento Completo: Tela → Endpoint
@@ -943,6 +956,11 @@ Acessível via Configurações. Permite renomear e excluir a carteira ativa.
 | Config > Métodos Pag. | CRUD                 | `/api/pay-method/*`                            | GET/POST/PATCH/DELETE |
 | Config > Carteira     | Listar               | `/api/wallet`                                  | GET                   |
 | Config > Carteira     | Editar/Excluir       | `/api/wallet/*`                                | PATCH/DELETE          |
+| Config > Convites     | Enviar convite       | `/api/wallet-invite/send-invite`               | POST                  |
+| Config > Convites     | Listar recebidos     | `/api/wallet-invite/find-invites`              | GET                   |
+| Config > Convites     | Responder convite    | `/api/wallet-invite/accept-invite`             | PATCH                 |
+| Usuários              | Listar todos         | `/api/auth/find-all`                           | GET                   |
+| Usuários              | Buscar por email     | `/api/auth/find-by-email/:id`                  | GET                   |
 
 ---
 
