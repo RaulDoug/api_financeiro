@@ -10,9 +10,10 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --env-file=.env src/server.js",
+    "dev": "tsx watch --env-file=.env src/server.js",
     "start": "node src/server.js",
-    "test": "node --env-file=.env.test node_modules/vitest/vitest.mjs"
+    "test": "node --env-file=.env.test node_modules/vitest/vitest.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -27,9 +28,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
     "eslint": "^10.7.0",
-    "nodemon": "^3.1.14",
     "supertest": "^7.2.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
     "vitest": "^4.1.10"
   }
 }

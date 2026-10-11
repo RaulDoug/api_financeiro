@@ -3,7 +3,7 @@
 > Documento de referência completa para o desenvolvimento do front-end.
 > Baseado na realidade atual do back-end: rotas, shapes de resposta, regras de negócio e validações implementadas.
 
-**Última atualização:** 2026-09-12
+**Última atualização:** 2026-10-11
 
 ---
 
@@ -17,34 +17,36 @@
 6. [Tela: Transações / Lançamentos](#6-tela-transações--lançamentos)
 7. [Tela: Cartões de Crédito](#7-tela-cartões-de-crédito)
 8. [Tela: Contas Bancárias](#8-tela-contas-bancárias)
-9. [Tela: Relatórios Detalhados](#9-tela-relatórios-detalhados)
-10. [Tela: Investimentos (Pendente)](#10-tela-investimentos-pendente)
-11. [Tela: Configurações e Cadastros Auxiliares](#11-tela-configurações-e-cadastros-auxiliares)
-12. [Mapeamento Completo: Tela → Endpoint](#12-mapeamento-completo-tela--endpoint)
-13. [Contratos de Dados — Shapes de Referência](#13-contratos-de-dados--shapes-de-referência)
-14. [Regras de Negócio que Impactam o Front](#14-regras-de-negócio-que-impactam-o-front)
-15. [Estados de Interface e Tratamento de Erros](#15-estados-de-interface-e-tratamento-de-erros)
-16. [Plano de Sprints Sugerido](#16-plano-de-sprints-sugerido)
+9. [Tela: Orçamentos e Metas de Gastos (Budgets)](#9-tela-orçamentos-e-metas-de-gastos-budgets)
+10. [Tela: Relatórios Detalhados](#10-tela-relatórios-detalhados)
+11. [Tela: Investimentos (Pendente)](#11-tela-investimentos-pendente)
+12. [Tela: Configurações e Cadastros Auxiliares](#12-tela-configurações-e-cadastros-auxiliares)
+13. [Mapeamento Completo: Tela → Endpoint](#13-mapeamento-completo-tela--endpoint)
+14. [Contratos de Dados — Shapes de Referência](#14-contratos-de-dados--shapes-de-referência)
+15. [Regras de Negócio que Impactam o Front](#15-regras-de-negócio-que-impactam-o-front)
+16. [Estados de Interface e Tratamento de Erros](#16-estados-de-interface-e-tratamento-de-erros)
+17. [Plano de Sprints Sugerido](#17-plano-de-sprints-sugerido)
 
 ---
 
 ## 1. Contexto Global da Aplicação
 
 ### O que o sistema faz
-Aplicativo de controle financeiro pessoal/compartilhado. Permite gerenciar múltiplas carteiras, contas bancárias, transações (entradas, saídas, transferências), cartões de crédito com fatura e investimentos.
+Aplicativo de controle financeiro pessoal/compartilhado. Permite gerenciar múltiplas carteiras, contas bancárias, transações (entradas, saídas, transferências), cartões de crédito com fatura, orçamentos/metas de gastos por categoria e investimentos.
 
 ### Conceitos-chave do domínio
 
-| Conceito             | Descrição                   | Relação                                       |
-| -------------------- | --------------------------- | --------------------------------------------- |
-| **User**             | Usuário autenticado via JWT | Pode pertencer a N carteiras                  |
-| **Wallet**           | Carteira financeira         | Contém contas, categorias, transações         |
-| **Bank Account**     | Conta bancária com saldo    | Pertence a 1 wallet                           |
-| **Category**         | Classificação da transação  | Tipo: `incomings` ou `expenses`               |
-| **Counterparty**     | Quem paga ou recebe         | Tipo: `payer` ou `payee`                      |
-| **Pay Method**       | Forma de pagamento          | Pode ser cartão de crédito                    |
-| **Transaction**      | Lançamento financeiro       | Vincula conta, categoria, contraparte, método |
-| **Investment Asset** | Ativo de investimento       | 🚧 `investments_transactions` pendente         |
+| Conceito             | Descrição                            | Relação                                       |
+| -------------------- | ------------------------------------ | --------------------------------------------- |
+| **User**             | Usuário autenticado via JWT          | Pode pertencer a N carteiras                  |
+| **Wallet**           | Carteira financeira                  | Contém contas, categorias, transações, metas  |
+| **Bank Account**     | Conta bancária com saldo             | Pertence a 1 wallet                           |
+| **Category**         | Classificação da transação           | Tipo: `incomings` ou `expenses`               |
+| **Counterparty**     | Quem paga ou recebe                  | Tipo: `payer` ou `payee`                      |
+| **Pay Method**       | Forma de pagamento                   | Pode ser cartão de crédito                    |
+| **Transaction**      | Lançamento financeiro                | Vincula conta, categoria, contraparte, método |
+| **Budget**           | Meta de gastos por categoria/mês/ano | Pertence a 1 wallet e 1 categoria (expenses)  |
+| **Investment Asset** | Ativo de investimento                | 🚧 `investments_transactions` pendente         |
 
 ### Headers obrigatórios em toda requisição protegida
 
@@ -78,6 +80,7 @@ Content-Type: application/json
 | Transações                           | `/transactions`            | 💸     |
 | Cartões de Crédito                   | `/credit-cards`            | 💳     |
 | Contas Bancárias                     | `/bank-accounts`           | 🏦     |
+| Orçamentos / Metas                   | `/budgets`                 | 🎯     |
 | Relatórios                           | `/reports`                 | 📋     |
 | Investimentos                        | `/investments`             | 📈     |
 | Configurações                        | `/settings`                | ⚙️     |
@@ -99,6 +102,7 @@ Content-Type: application/json
 │ 💸 Trans │                                          │
 │ 💳 Cards │                                          │
 │ 🏦 Contas│                                          │
+│ 🎯 Metas │                                          │
 │ 📋 Relat │                                          │
 │ 📈 Invest│                                          │
 │ ⚙️ Config│                                          │
@@ -749,9 +753,104 @@ A tabela `categories` tem campo `type` que é `incomings` ou `expenses`. O front
 
 ---
 
-## 9. Tela: Relatórios Detalhados
+## 9. Tela: Orçamentos e Metas de Gastos (Budgets)
 
-### 9.1 Receita vs Despesa Anual
+A tela de Orçamentos centraliza o **planejamento preventivo** e o **controle contínuo de gastos** da carteira ativa. Ela responde de imediato a duas perguntas vitais do usuário:
+1. *"Quanto ainda posso gastar nesta categoria antes de estourar a meta?"* (`remaining_amount`)
+2. *"Se eu respeitar todas as minhas metas, quanto vai sobrar de dinheiro no meu caixa?"* (`forecasted_savings_if_budget_kept`)
+
+---
+
+### 9.1 Casos de Uso do Front-End
+
+#### Caso de Uso 1: Visualização do Painel Mensal (Cards de Categoria)
+- **Endpoint consumido:** `GET /api/budget?year=YYYY&month=M`
+- **Componente:** Grid de cards, um para cada categoria orçada no mês selecionado.
+- **Informações do card:**
+  - Nome, ícone e cor da categoria (`category_name`, `icon`, `color`).
+  - Meta definida: `target_amount` (ex: *"Meta: R$ 1.500,00"*).
+  - Gasto acumulado: `used_amount` (ex: *"Gasto: R$ 600,00"*).
+  - Barra de progresso visual (`percentage_used`):
+    - **Verde (< 80%):** Saudável, consumo controlado.
+    - **Amarelo (80% a 99%):** Alerta, próximo do teto.
+    - **Vermelho (>= 100%):** Estourado (`status === 'exceeded'`).
+  - Indicador numérico em destaque:
+    - Se `status === 'within_budget'`: *"Restante para gastar: R$ {remaining_amount}"*
+    - Se `status === 'exceeded'`: *"Estourado em: R$ {Math.abs(remaining_amount)}"* (texto em vermelho com ícone de alerta).
+  - Ações no card: botão de editar meta (lápis), botão de excluir (lixeira) e botão de sincronizar/recalcular (refresh).
+
+#### Caso de Uso 2: Seletor de Período e Visão Anual Panorâmica
+- **Navegação temporal:** Seletor com setas `< Outubro 2026 >` e seletor rápido de mês/ano.
+- **Toggle de visualização:** Alternar entre abas **"Mensal"** e **"Anual"**.
+- **No modo Anual (`GET /api/budget?year=YYYY`):**
+  - O endpoint omite `month` e retorna `{ year, items, months }`.
+  - Renderizar um gráfico de barras comparando mês a mês (Jan a Dez):
+    - Barra 1: `total_target` (planejado)
+    - Barra 2: `total_used` (consumido)
+  - Tabela consolidada com o total planejado vs total gasto no ano todo.
+
+#### Caso de Uso 3: Resumo Superior de Caixa e Previsão de Sobra
+- **Endpoint consumido:** `GET /api/budget/summary?year=YYYY&month=M`
+- **Renderização:** 4 cards no topo da tela para dar visibilidade executiva sem causar confusão com o saldo bancário:
+  1. **Total Orçado no Mês:** `total_target` (teto somado de todas as categorias).
+  2. **Total Gasto nas Metas:** `total_used` (soma das despesas das categorias orçadas).
+  3. **Restante do Orçamento:** `total_remaining_budget` (`total_target - total_used`).
+  4. **Previsão de Sobra no Caixa:** `forecasted_savings_if_budget_kept` (`total_incomings - total_target`).
+- **💡 Nota de UX:** Incluir tooltip explicativo no card 4: *"Projeção calculada subtraindo o total das suas metas das receitas totais previstas no mês. Mostra quanto sobrará na sua conta caso você cumpra exatamente o orçamento planejado."*
+
+#### Caso de Uso 4: Cadastro de Orçamento (Modal)
+- **Endpoint:** `POST /api/budget/register`
+- **Formulário:**
+  - **Categoria:** Dropdown carregando apenas categorias de despesa (`GET /api/categorie?type=expenses`). Categorias de receita (`incomings`) **não devem aparecer** no seletor.
+  - **Mês e Ano:** Defaults pré-carregados a partir do período ativo selecionado na tela.
+  - **Valor da Meta (`target_amount`):** Input numérico monetário obrigatório (> 0).
+  - **Tipo de Orçamento (Radio ou Switch):**
+    - **"Apenas este mês"** (`mode: 'single'`): Gera 1 registro avulso.
+    - **"Recorrente / Repetir nos próximos meses"** (`mode: 'recurrent'`):
+      - Se ativado, exibe um slider ou select: *"Quantidade de meses"* (`months_quantity`, de 2 a 12, default 12).
+- **Comportamento pós-submit:**
+  - **Em caso de Sucesso (`201`):** Toast de confirmação e recarregar a listagem e o resumo.
+  - **Cálculo Automático Inicial:** Informar ao usuário que gastos já realizados no mês corrente para a categoria são computados imediatamente no progresso.
+  - **Em caso de Conflito (`409`):** Exibir alerta específico: *"Esta categoria já possui um orçamento cadastrado para este mês/ano. Edite o orçamento existente em vez de criar um novo."*
+
+#### Caso de Uso 5: Edição de Orçamento com Modal de Escopo (Meses Atípicos)
+- **Endpoint:** `PATCH /api/budget/update/:id`
+- **Fluxo inteligente:**
+  - Ao clicar no botão de editar de um card:
+  - O front verifica se o orçamento possui `recurrence_group_id !== null`:
+    - **Se for nulo (avulso):** O modal exibe apenas o campo de novo `target_amount` e envia `scope: 'single'`.
+    - **Se pertencer a um grupo recorrente:** O modal exibe o campo `target_amount` e pergunta o escopo da alteração:
+      - Radio A: **"Apenas este mês"** (`scope: 'single'`) — Ideal para meses atípicos (ex: aumentar compras de mercado em Dezembro).
+      - Radio B: **"Este e os próximos meses"** (`scope: 'following'`) — Ajusta o teto de forma permanente a partir deste mês. Meses anteriores continuam intocados.
+
+#### Caso de Uso 6: Exclusão com Escopo
+- **Endpoint:** `DELETE /api/budget/delete/:id?scope=...`
+- **Modal de confirmação:**
+  - Se avulso: confirmação simples ("Deseja remover este orçamento?").
+  - Se recorrente: opções:
+    - *"Excluir apenas este mês"* (`scope: 'single'`)
+    - *"Excluir este e todos os próximos meses"* (`scope: 'following'`)
+
+#### Caso de Uso 7: Sincronização Sob Demanda (Auto-heal)
+- **Endpoint:** `PATCH /api/budget/recalculate_used_amount?category_id=UUID&year=YYYY&month=M`
+- **Ação:** Botão de refresh discreto no card da categoria. Dispara o recálculo imediato das despesas confirmadas no banco e atualiza o estado local imediatamente.
+
+---
+
+### 9.2 Estados de Interface
+
+| Estado | O que renderizar |
+| --- | --- |
+| **Loading** | Skeletons dos 4 cards de KPI + grid de skeletons com simulação de barras de progresso |
+| **Vazio (sem orçamentos)** | Ilustração amigável com texto: *"Nenhum orçamento definido para este mês. Estabeleça metas para monitorar seus gastos."* + Botão primário `+ Definir Primeira Meta` |
+| **Alerta de Risco (80% a 99%)** | Barra de progresso amarela e tag de aviso *"Atenção: 85% consumido"* |
+| **Orçamento Estourado (>= 100%)** | Borda do card em vermelho suave, badge `Excedido` e destaque no valor ultrapassado |
+
+---
+
+## 10. Tela: Relatórios Detalhados
+
+### 10.1 Receita vs Despesa Anual
 
 **Endpoint:** `GET /api/dashboard-report/income-vs-expense?year=2026`
 
@@ -770,13 +869,13 @@ Resultado         R$ 15.000,00  (Taxa de economia: 25%)
 - Somar `expense` → Total Despesas
 - Resultado = Total Receitas - Total Despesas
 
-### 9.2 Gastos por Categoria (detalhado)
+### 10.2 Gastos por Categoria (detalhado)
 
 **Endpoint:** `GET /api/dashboard-report/expense-by-category`
 
 Igual ao dashboard, mas com filtros de data mais amplos e tabela completa ao lado do gráfico com: posição, categoria, valor total, percentual.
 
-### 9.3 Relatório por Contraparte
+### 10.3 Relatório por Contraparte
 
 🚧 **Não existe endpoint dedicado no back-end.** Porém é possível montar no front usando:
 
@@ -788,7 +887,7 @@ Igual ao dashboard, mas com filtros de data mais amplos e tabela completa ao lad
 
 ---
 
-## 10. Tela: Investimentos (Pendente)
+## 11. Tela: Investimentos (Pendente)
 
 > 🚧 **A tabela `investments_transactions` e suas rotas de movimentação ainda não foram desenvolvidas no back-end.**
 
@@ -828,7 +927,7 @@ Criar a tela como listagem de ativos com CRUD básico e um banner ou seção inf
 
 ---
 
-## 11. Tela: Configurações e Cadastros Auxiliares
+## 12. Tela: Configurações e Cadastros Auxiliares
 
 Telas CRUD simples. Todas seguem o padrão do `BaseController`:
 - Sem filtro → retorna array
@@ -926,7 +1025,7 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 
 ---
 
-## 12. Mapeamento Completo: Tela → Endpoint
+## 13. Mapeamento Completo: Tela → Endpoint
 
 | Tela                  | Ação                 | Endpoint                                       | Método                |
 | --------------------- | -------------------- | ---------------------------------------------- | --------------------- |
@@ -947,6 +1046,14 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 | Cartões               | Cadastrar            | `/api/pay-method/register`                     | POST                  |
 | Contas                | Listar               | `/api/bank-account`                            | GET                   |
 | Contas                | CRUD                 | `/api/bank-account/*`                          | POST/PATCH/DELETE     |
+| Orçamentos / Metas    | Listar/Resumo mensal | `/api/budget`                                  | GET                   |
+| Orçamentos / Metas    | Resumo de caixa      | `/api/budget/summary`                          | GET                   |
+| Orçamentos / Metas    | Buscar por ID/filtro | `/api/budget/find`                             | GET                   |
+| Orçamentos / Metas    | Consultar valor real | `/api/budget/amount`                           | GET                   |
+| Orçamentos / Metas    | Cadastrar            | `/api/budget/register`                         | POST                  |
+| Orçamentos / Metas    | Atualizar meta       | `/api/budget/update/:id`                       | PATCH                 |
+| Orçamentos / Metas    | Recalcular gastos    | `/api/budget/recalculate_used_amount`          | PATCH                 |
+| Orçamentos / Metas    | Excluir meta         | `/api/budget/delete/:id`                       | DELETE                |
 | Relatórios            | Anual                | `/api/dashboard-report/income-vs-expense`      | GET                   |
 | Relatórios            | Por categoria        | `/api/dashboard-report/expense-by-category`    | GET                   |
 | Investimentos         | Listar ativos        | `/api/investiment-asset`                       | GET                   |
@@ -964,7 +1071,7 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 
 ---
 
-## 13. Contratos de Dados — Shapes de Referência
+## 14. Contratos de Dados — Shapes de Referência
 
 ### IDs nas rotas
 
@@ -972,15 +1079,16 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 | ---------------- | ----------------- | ------------------ |
 | Wallet           | UUID              | `string`           |
 | Transaction      | UUID              | `string`           |
+| Budget           | UUID              | `string`           |
 | Bank Account     | `display_id`      | `number` (inteiro) |
 | Category         | `display_id`      | `number`           |
 | Counterparty     | `display_id`      | `number`           |
 | Pay Method       | `display_id`      | `number`           |
 | Investment Asset | `display_id`      | `number`           |
 
-> **Cuidado:** Transações e Wallets usam UUID no `:id` da rota. Todos os demais módulos usam `display_id` (número inteiro sequencial por carteira).
+> **Cuidado:** Transações, Wallets e Orçamentos (`Budget`) usam UUID no `:id` da rota. Todos os demais módulos usam `display_id` (número inteiro sequencial por carteira).
 
-### Padrão de resposta dos módulos CRUD (exceto Transaction)
+### Padrão de resposta dos módulos CRUD (exceto Transaction e Budget)
 
 | Cenário        | Shape                                         |
 | -------------- | --------------------------------------------- |
@@ -1000,11 +1108,29 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 | POST parcelado     | `{ "message": "...", "itens": [{...}] }`                                                                                            |
 | POST transferência | `{ "message": "...", "expenseRow": {...}, "incomingRow": {...} }`                                                                   |
 
+### Padrão de resposta de Budget (Orçamento)
+
+| Cenário                            | Shape                                                                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET mensal (`?year=...&month=...`) | `{ "items": [{ "id": "...", "display_id": 1, ..., "remaining_amount": 900, "percentage_used": 40, "status": "within_budget" }] }`           |
+| GET anual (`?year=...`)            | `{ "year": 2026, "items": [{...}], "months": [{ "month": 10, "total_target": 2000, "total_used": 1250 }] }`                                |
+| GET summary                        | `{ "summary": { "total_target": 3500, "total_used": 1850, "total_remaining_budget": 1650, "forecasted_savings_if_budget_kept": 2500 } }`      |
+| GET amount                         | `{ "amount": 450.00 }`                                                                                                                       |
+| GET find (por `id`)                | `{ "result": { "id": "...", "display_id": 1, "target_amount": "1500.00", ... } }`                                                            |
+| GET find (filtros múltiplos)       | `{ "result": [{ "id": "...", "display_id": 1, ... }] }`                                                                                     |
+| POST simples (`single`)            | `{ "message": "Orçamento cadastrado com sucesso!", "budget": { "id": "...", "target_amount": "1500.00", ... } }`                             |
+| POST recorrente (`recurrent`)      | `{ "message": "Orçamento cadastrado com sucesso!", "budget": { "recurrence_group_id": "...", "items": [{...}] } }`                           |
+| PATCH (`scope: 'single'`)          | `{ "message": "Orçamento atualizado com sucesso!", "budget": { "id": "...", "target_amount": "1300.00", ... } }`                             |
+| PATCH (`scope: 'following'`)       | `{ "message": "Orçamentos atualizados com sucesso!", "budgets": [{ "id": "...", "target_amount": "1300.00" }, ...] }`                       |
+| DELETE (`scope: 'single'`)         | `{ "message": "Orçamento excluído com sucesso!", "budget": { "id": "..." } }`                                                                |
+| DELETE (`scope: 'following'`)      | `{ "message": "Orçamentos excluídos com sucesso!", "budgets": [{ "id": "..." }, ...] }`                                                      |
+| PATCH recalculate                  | `{ "result": { "id": "...", "used_amount": 450.00, ... } }`                                                                                  |
+
 ---
 
-## 14. Regras de Negócio que Impactam o Front
+## 15. Regras de Negócio que Impactam o Front
 
-### 14.1 Transações
+### 15.1 Transações
 
 | Regra                                                 | Impacto no front                                         |
 | ----------------------------------------------------- | -------------------------------------------------------- |
@@ -1015,7 +1141,7 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 | Exclusão de `completed` reverte saldo                 | Confirmar com modal: *"O saldo da conta será revertido"* |
 | Exclusão de transferência remove os 2                 | Avisar: *"Ambos os lançamentos serão removidos"*         |
 
-### 14.2 Cartão de Crédito
+### 15.2 Cartão de Crédito
 
 | Regra                                      | Impacto no front                        |
 | ------------------------------------------ | --------------------------------------- |
@@ -1023,23 +1149,33 @@ Permite compartilhar a carteira ativa com outros usuários e gerenciar convites 
 | Campo `credit_card` não pode ser alterado  | Ocultar no formulário de edição         |
 | `used_credit_limit` é gerenciado pelo back | Exibir como read-only                   |
 
-### 14.3 Contas Bancárias
+### 15.3 Contas Bancárias
 
 | Regra                                                 | Impacto no front                            |
 | ----------------------------------------------------- | ------------------------------------------- |
 | `balance` é string no retorno                         | Converter para `Number()` antes de formatar |
 | `allow_negative_balance = false` + saldo insuficiente | API rejeita transação — exibir erro         |
 
-### 14.4 Datas — Formato
+### 15.4 Datas — Formato
 
 Todas as datas devem ser enviadas como `YYYY-MM-DD` (ISO 8601 date).  
 As datas retornadas pela API podem vir como `YYYY-MM-DD` (campos date) ou `YYYY-MM-DDTHH:mm:ss.sssZ` (campos timestamptz).
 
+### 15.5 Orçamentos e Metas de Gastos
+
+| Regra                                                                | Impacto no front                                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Apenas categorias de despesa (`type: 'expenses'`)                    | Filtrar a lista do select no formulário para omitir categorias `incomings`                      |
+| Restrição única: `(wallet_id, category_id, year, month)`             | Se a API retornar `409 Conflict`, mostrar aviso específico orientando edição da meta existente  |
+| Escopo `following` só é permitido em orçamentos recorrentes          | Ocultar ou desabilitar opção de escopo futuro caso o orçamento seja avulso                      |
+| Cálculo inicial na criação                                           | Ao cadastrar no decorrer do mês, despesas confirmadas anteriores já são somadas no `used_amount` |
+| Escopo `following` protege meses passados                            | Alterações futuras mantêm o histórico dos meses anteriores rigorosamente preservado             |
+
 ---
 
-## 15. Estados de Interface e Tratamento de Erros
+## 16. Estados de Interface e Tratamento de Erros
 
-### 15.1 Estados visuais de cada tela
+### 16.1 Estados visuais de cada tela
 
 | Estado  | Quando                    | Renderizar                          |
 | ------- | ------------------------- | ----------------------------------- |
@@ -1048,17 +1184,18 @@ As datas retornadas pela API podem vir como `YYYY-MM-DD` (campos date) ou `YYYY-
 | Erro    | API retornou erro         | Toast/Snackbar com mensagem da API  |
 | Sucesso | Mutação concluída         | Toast de sucesso + recarregar dados |
 
-### 15.2 Mapa de erros da API
+### 16.2 Mapa de erros da API
 
-| Status HTTP | Significado                            | Ação no front                                |
-| ----------- | -------------------------------------- | -------------------------------------------- |
-| `400`       | Validação ou regra de negócio          | Mostrar `message` no formulário              |
-| `401`       | Token ausente/inválido/expirado        | Redirecionar para `/login`                   |
-| `403`       | Sem permissão                          | Mostrar *"Você não tem permissão"*           |
-| `404`       | Recurso não encontrado                 | Mostrar *"Item não encontrado"*              |
-| `422`       | Violação de regra (saldo insuficiente) | Mostrar `message` no modal                   |
-| `429`       | Rate limit (login)                     | Mostrar *"Aguarde 15 minutos"*               |
-| `500`       | Erro interno                           | Mostrar *"Erro inesperado, tente novamente"* |
+| Status HTTP | Significado                            | Ação no front                                                        |
+| ----------- | -------------------------------------- | -------------------------------------------------------------------- |
+| `400`       | Validação ou regra de negócio          | Mostrar `message` no formulário                                      |
+| `401`       | Token ausente/inválido/expirado        | Redirecionar para `/login`                                           |
+| `403`       | Sem permissão                          | Mostrar *"Você não tem permissão"*                                   |
+| `404`       | Recurso não encontrado                 | Mostrar *"Item não encontrado"*                                      |
+| `409`       | Conflito / Registro duplicado          | Mostrar aviso amigável (ex: *"Orçamento já existe neste mês e ano"*) |
+| `422`       | Violação de regra (saldo insuficiente) | Mostrar `message` no modal                                           |
+| `429`       | Rate limit (login)                     | Mostrar *"Aguarde 15 minutos"*                                       |
+| `500`       | Erro interno                           | Mostrar *"Erro inesperado, tente novamente"*                         |
 
 **Shape padrão de erro da API:**
 ```json
@@ -1067,17 +1204,17 @@ As datas retornadas pela API podem vir como `YYYY-MM-DD` (campos date) ou `YYYY-
 }
 ```
 
-### 15.3 Após mutações (POST/PATCH/DELETE)
+### 16.3 Após mutações (POST/PATCH/DELETE)
 
 Após qualquer mutação bem-sucedida:
 1. Fechar modal/formulário.
 2. Invalidar cache da listagem (se usar TanStack Query: `queryClient.invalidateQueries`).
-3. Recarregar dados do Dashboard (se afeta saldos/transações).
+3. Recarregar dados do Dashboard e Resumos (se afeta saldos, transações ou metas).
 4. Exibir toast de sucesso com a `message` da API.
 
 ---
 
-## 16. Plano de Sprints Sugerido
+## 17. Plano de Sprints Sugerido
 
 ### Sprint 1 — Fundação (1 semana)
 - [ ] Setup do projeto (Vite + React + Tailwind)
@@ -1113,14 +1250,22 @@ Após qualquer mutação bem-sucedida:
 - [ ] Fatura detalhada com transações
 - [ ] Tela de contas bancárias com CRUD
 
-### Sprint 6 — Configurações e Relatórios (1 semana)
+### Sprint 6 — Orçamentos e Metas de Gastos (1 semana)
+- [ ] Tela de Orçamentos (`/budgets`) com seletor de mês/ano e toggle anual
+- [ ] Cards de categorias com barras de progresso dinâmicas (verde/amarelo/vermelho)
+- [ ] Resumo superior de caixa e previsão de sobra
+- [ ] Modal de cadastro de meta (avulso vs recorrente flexível de 2 a 12 meses)
+- [ ] Modal de edição com seleção de escopo (`single` vs `following`)
+- [ ] Exclusão com escopo e recálculo sob demanda
+
+### Sprint 7 — Configurações e Relatórios (1 semana)
 - [ ] CRUD de Categorias (agrupado por tipo)
 - [ ] CRUD de Contrapartes (agrupado por tipo)
 - [ ] CRUD de Métodos de Pagamento
 - [ ] Tela de relatórios detalhados
 - [ ] Gestão da carteira
 
-### Sprint 7 — Investimentos (placeholder) + Polimento (1 semana)
+### Sprint 8 — Investimentos (placeholder) + Polimento (1 semana)
 - [ ] Tela de investimentos com CRUD de ativos
 - [ ] Banner de funcionalidades pendentes
 - [ ] Responsividade mobile

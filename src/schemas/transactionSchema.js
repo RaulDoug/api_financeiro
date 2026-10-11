@@ -1,4 +1,4 @@
-import { boolean, z } from 'zod';
+import { z } from 'zod';
 
 // Regras individuais dos campos
 const walletIdValidation = z.string().uuid('ID da carteira inválido');

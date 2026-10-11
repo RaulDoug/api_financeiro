@@ -245,8 +245,7 @@ export default class TransactionServices {
       assessment,
       all_installments,
       total_invoice,
-      // eslint-disable-next-line no-unused-vars
-      destiny_bank_account_id,
+      destiny_bank_account_id, //eslint-disable-line
       ...updateFields
     } = data; // Separa os valores bases passados dos valores a se atualizar
 

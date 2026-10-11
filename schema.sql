@@ -238,3 +238,28 @@ CREATE TABLE investments_transactions (
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT fk_it_investment_asset FOREIGN KEY (investment_asset_id) REFERENCES investment_assets(id) ON DELETE CASCADE
 );
+
+-------------------------------------------------
+-- Tabela de orçamento por categoria (category_budget)
+-------------------------------------------------
+CREATE TABLE category_budgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_id INT,
+  wallet_id UUID NOT NULL,
+  category_id UUID NOT NULL,
+  recurrence_group_id UUID,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+  target_amount NUMERIC NOT NULL CHECK (target_amount > 0),
+  used_amount NUMERIC NOT NULL DEFAULT 0 CHECK (used_amount >= 0),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ,
+  CONSTRAINT fk_cb_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cb_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+  CONSTRAINT uq_category_month_year UNIQUE (wallet_id, category_id, year, month),
+  CONSTRAINT uq_category_budgets_wallet_display UNIQUE (wallet_id, display_id)
+);
+
+CREATE TRIGGER trg_category_budgets_display_id
+BEFORE INSERT ON category_budgets
+FOR EACH ROW EXECUTE FUNCTION set_generic_display_id();

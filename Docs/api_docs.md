@@ -74,6 +74,14 @@ x-wallet-id: <uuid-da-carteira>
 | Dashboard        | GET    | `/api/dashboard-report/credit-card-summary` | ✅    | ✅           |
 | Dashboard        | GET    | `/api/dashboard-report/overdue-alerts`      | ✅    | ✅           |
 | Dashboard        | GET    | `/api/dashboard-report/recent-transactions` | ✅    | ✅           |
+| Orçamento        | GET    | `/api/budget`                               | ✅    | ✅           |
+| Orçamento        | GET    | `/api/budget/find`                          | ✅    | ✅           |
+| Orçamento        | GET    | `/api/budget/summary`                       | ✅    | ✅           |
+| Orçamento        | GET    | `/api/budget/amount`                        | ✅    | ✅           |
+| Orçamento        | POST   | `/api/budget/register`                      | ✅    | ✅           |
+| Orçamento        | PATCH  | `/api/budget/update/:id`                    | ✅    | ✅           |
+| Orçamento        | PATCH  | `/api/budget/recalculate_used_amount`       | ✅    | ✅           |
+| Orçamento        | DELETE | `/api/budget/delete/:id`                    | ✅    | ✅           |
 
 ---
 
@@ -1594,17 +1602,434 @@ Lista de transações vencidas ou com status `expired`, ordenadas da mais antiga
 
 ---
 
+## 🎯 Budget — Orçamentos e Metas de Gastos
 
+Gerenciamento de metas orçamentárias mensais e anuais por categoria de despesa (`category_budgets`). Permite planejar tetos de gastos, acompanhar a execução financeira em tempo real, gerenciar recorrências e projetar sobras no caixa.
 
-| Status | Significado                                           |
-| ------ | ----------------------------------------------------- |
-| `400`  | Erro de validação ou regra de negócio                 |
-| `401`  | Token ausente ou inválido                             |
-| `403`  | Sem permissão para acessar o recurso                  |
-| `404`  | Recurso não encontrado                                |
-| `422`  | Violação de regra de negócio (ex: saldo insuficiente) |
-| `429`  | Muitas requisições (rate limit)                       |
-| `500`  | Erro interno do servidor                              |
+> [!IMPORTANT]
+> Todas as rotas de orçamentos exigem `Authorization: Bearer <token>` e o header `x-wallet-id: <uuid>`.
+
+> [!NOTE]
+> - O identificador do orçamento no parâmetro `:id` é sempre um **UUID**.
+> - Cada orçamento possui também um `display_id` sequencial gerado automaticamente por trigger no banco.
+
+---
+
+### `GET /api/budget`
+Consulta modular de orçamentos da carteira. Alterna entre visão mensal detalhada com indicadores de progresso e visão anual consolidada.
+
+**Query Params:**
+| Parâmetro | Tipo     | Obrigatório | Descrição                                                          |
+| --------- | -------- | ----------- | ------------------------------------------------------------------ |
+| `year`    | `number` | Sim         | Ano de referência (inteiro positivo)                               |
+| `month`   | `number` | Não         | Mês de referência (1 a 12). Se omitido, retorna visão anual dos 12 meses |
+
+#### Cenário 1: Consulta Mensal (`month` informado)
+Calcula automaticamente `remaining_amount`, `percentage_used` e `status` para cada categoria.
+
+**Exemplo:** `GET /api/budget?year=2026&month=10`
+
+**Resposta `200`:**
+```json
+{
+  "items": [
+    {
+      "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+      "display_id": 1,
+      "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+      "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "recurrence_group_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "year": 2026,
+      "month": 10,
+      "target_amount": "1500.00",
+      "used_amount": "600.00",
+      "created_at": "2026-10-01T12:00:00.000Z",
+      "updated_at": null,
+      "remaining_amount": 900,
+      "percentage_used": 40,
+      "status": "within_budget"
+    },
+    {
+      "id": "b8c3682a-1f5e-4e7c-cgb0-987654321def",
+      "display_id": 2,
+      "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+      "category_id": "b2c3d4e5-f6a7-8901-bcde-fa2345678901",
+      "recurrence_group_id": null,
+      "year": 2026,
+      "month": 10,
+      "target_amount": "500.00",
+      "used_amount": "650.00",
+      "created_at": "2026-10-01T12:00:00.000Z",
+      "updated_at": null,
+      "remaining_amount": -150,
+      "percentage_used": 130,
+      "status": "exceeded"
+    }
+  ]
+}
+```
+
+#### Cenário 2: Consulta Anual (`month` omitido)
+Retorna a lista completa dos itens e um resumo com o total planejado e utilizado por mês.
+
+**Exemplo:** `GET /api/budget?year=2026`
+
+**Resposta `200`:**
+```json
+{
+  "year": 2026,
+  "items": [
+    {
+      "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+      "display_id": 1,
+      "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+      "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "recurrence_group_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "year": 2026,
+      "month": 10,
+      "target_amount": "1500.00",
+      "used_amount": "600.00",
+      "created_at": "2026-10-01T12:00:00.000Z",
+      "updated_at": null
+    }
+  ],
+  "months": [
+    {
+      "month": 10,
+      "total_target": 2000,
+      "total_used": 1250
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/budget/summary`
+Retorna métricas consolidadas do mês para acompanhamento da saúde financeira e projeção de sobra de caixa.
+
+**Query Params:**
+| Parâmetro | Tipo     | Obrigatório | Descrição                             |
+| --------- | -------- | ----------- | ------------------------------------- |
+| `year`    | `number` | Sim         | Ano de referência (inteiro positivo)  |
+| `month`   | `number` | Sim         | Mês de referência (inteiro entre 1 e 12) |
+
+**Exemplo:** `GET /api/budget/summary?year=2026&month=10`
+
+**Resposta `200`:**
+```json
+{
+  "summary": {
+    "total_target": 3500,
+    "total_used": 1850,
+    "total_remaining_budget": 1650,
+    "forecasted_savings_if_budget_kept": 2500
+  }
+}
+```
+
+**Significado dos campos:**
+- `total_target`: Soma de todas as metas orçadas nas categorias para o mês (`target_amount`).
+- `total_used`: Total efetivamente gasto nas categorias orçadas (`used_amount`).
+- `total_remaining_budget`: Margem de orçamento que ainda pode ser gasta (`total_target - total_used`).
+- `forecasted_savings_if_budget_kept`: Previsão de economia real no caixa caso todos os orçamentos sejam rigorosamente cumpridos (`total_incomings - total_target`).
+
+---
+
+### `GET /api/budget/find`
+Busca flexível de orçamentos por filtros específicos (ID, display_id, categoria, ano ou mês).
+
+**Query Params (opcionais):**
+| Parâmetro     | Tipo     | Descrição                                 |
+| ------------- | -------- | ----------------------------------------- |
+| `id`          | `UUID`   | ID único do orçamento                     |
+| `display_id`  | `number` | ID sequencial legível                     |
+| `category_id` | `UUID`   | Filtrar por categoria                     |
+| `year`        | `number` | Filtrar por ano                           |
+| `month`       | `number` | Filtrar por mês (1 a 12)                  |
+
+> [!NOTE]
+> Se o parâmetro `id` for fornecido, a resposta retorna `{ result: Budget }` (objeto único). Se `id` for omitido, retorna `{ result: Budget[] }` (array).
+
+**Resposta `200` (quando buscado por `id`):**
+```json
+{
+  "result": {
+    "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+    "display_id": 1,
+    "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+    "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "recurrence_group_id": null,
+    "year": 2026,
+    "month": 10,
+    "target_amount": "1500.00",
+    "used_amount": "300.00",
+    "created_at": "2026-10-01T12:00:00.000Z",
+    "updated_at": null
+  }
+}
+```
+
+---
+
+### `GET /api/budget/amount`
+Calcula sob demanda a soma real de despesas confirmadas (`status = 'completed'`) com `due_date` no mês/ano informado para a categoria.
+
+**Query Params:**
+| Parâmetro     | Tipo     | Obrigatório | Descrição                             |
+| ------------- | -------- | ----------- | ------------------------------------- |
+| `category_id` | `UUID`   | Sim         | ID da categoria de despesa            |
+| `year`        | `number` | Sim         | Ano de referência (inteiro positivo)  |
+| `month`       | `number` | Sim         | Mês de referência (inteiro entre 1 e 12) |
+
+**Exemplo:** `GET /api/budget/amount?category_id=uuid-cat&year=2026&month=10`
+
+**Resposta `200`:**
+```json
+{
+  "amount": 450.00
+}
+```
+
+---
+
+### `POST /api/budget/register`
+Cadastra um novo orçamento. Suporta modo único (`single`) ou modo recorrente (`recurrent`) com geração de múltiplos meses em transação segura no banco.
+
+**Body (Modo Single):**
+```json
+{
+  "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "year": 2026,
+  "month": 10,
+  "target_amount": 1500.00,
+  "mode": "single"
+}
+```
+
+**Body (Modo Recorrente):**
+```json
+{
+  "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "year": 2026,
+  "month": 1,
+  "target_amount": 800.00,
+  "mode": "recurrent",
+  "months_quantity": 12
+}
+```
+
+**Regras de validação:**
+| Campo             | Regra                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `category_id`     | UUID obrigatório. Deve pertencer à carteira e ter `type = 'expenses'`.             |
+| `year`            | Número inteiro positivo obrigatório.                                               |
+| `month`           | Número inteiro obrigatório entre `1` e `12`.                                       |
+| `target_amount`   | Número positivo obrigatório (`> 0`).                                               |
+| `mode`            | Enum opcional: `'single'` ou `'recurrent'` (default: `'single'`).                  |
+| `months_quantity` | Número inteiro opcional entre `2` e `12` (usado apenas em modo recorrente, default: 12). |
+
+**Comportamento do Back-end no Cadastro:**
+1. **Verificação de Categoria:** Se a categoria for do tipo `incomings`, retorna `400 Bad Request` (*"Apenas categorias de despesas podem ter orçamentos"*).
+2. **Cálculo Inicial de Gastos:** O primeiro mês gerado calcula automaticamente a soma de despesas confirmadas já lançadas para aquela categoria no mês (`due_date` dentro do mês e `status = 'completed'`), inicializando `used_amount` com esse total. Meses futuros na recorrência iniciam com `0`.
+3. **Chave Única:** Se já existir orçamento para a mesma carteira, categoria, mês e ano, retorna `409 Conflict` (*"Já existe um orçamento cadastrado para esta categoria neste mês e ano"*).
+
+**Resposta `201` (Modo Single):**
+```json
+{
+  "message": "Orçamento cadastrado com sucesso!",
+  "budget": {
+    "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+    "display_id": 1,
+    "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+    "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "recurrence_group_id": null,
+    "year": 2026,
+    "month": 10,
+    "target_amount": "1500.00",
+    "used_amount": 350.00,
+    "created_at": "2026-10-11T14:30:00.000Z",
+    "updated_at": null
+  }
+}
+```
+
+**Resposta `201` (Modo Recorrente):**
+```json
+{
+  "message": "Orçamento cadastrado com sucesso!",
+  "budget": {
+    "recurrence_group_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "items": [
+      {
+        "id": "uuid-mes-1",
+        "display_id": 2,
+        "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+        "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "recurrence_group_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "year": 2026,
+        "month": 1,
+        "target_amount": "800.00",
+        "used_amount": 0,
+        "created_at": "2026-10-11T14:30:00.000Z",
+        "updated_at": null
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `PATCH /api/budget/update/:id`
+Atualiza o valor da meta (`target_amount`) de um orçamento existente com suporte a escopo.
+
+**Parâmetros de Rota:**
+- `:id`: UUID do orçamento.
+
+**Body:**
+```json
+{
+  "target_amount": 1300.00,
+  "scope": "single"
+}
+```
+
+**Regras de validação:**
+| Campo           | Regra                                                                  |
+| --------------- | ---------------------------------------------------------------------- |
+| `:id`           | UUID válido obrigatório nos parâmetros de rota.                        |
+| `target_amount` | Número positivo obrigatório (`> 0`).                                   |
+| `scope`         | Enum opcional: `'single'` ou `'following'` (default: `'single'`).      |
+
+**Regras de Negócio do Escopo:**
+- **`scope: 'single'` (Apenas este mês):** Atualiza unicamente o registro identificado por `:id`. Ideal para meses atípicos (ex: compras extraordinárias em Dezembro).
+- **`scope: 'following'` (Este e os próximos meses):** Atualiza o registro atual e todos os registros subsequentes pertencentes ao mesmo `recurrence_group_id` onde `(year > Y OR (year = Y AND month >= M))`. O histórico dos meses passados é estritamente preservado.
+- Se o orçamento for avulso (`recurrence_group_id = null`) e o cliente passar `scope: 'following'`, a API retorna `400 Bad Request` (*"Não é possível aplicar escopo recorrente a um orçamento avulso"*).
+
+**Resposta `200` (`scope: 'single'`):**
+```json
+{
+  "message": "Orçamento atualizado com sucesso!",
+  "budget": {
+    "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+    "display_id": 1,
+    "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+    "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "recurrence_group_id": null,
+    "year": 2026,
+    "month": 10,
+    "target_amount": "1300.00",
+    "used_amount": "350.00",
+    "created_at": "2026-10-11T14:30:00.000Z",
+    "updated_at": "2026-10-11T14:45:00.000Z"
+  }
+}
+```
+
+**Resposta `200` (`scope: 'following'`):**
+```json
+{
+  "message": "Orçamentos atualizados com sucesso!",
+  "budgets": [
+    {
+      "id": "uuid-1",
+      "target_amount": "1300.00"
+    },
+    {
+      "id": "uuid-2",
+      "target_amount": "1300.00"
+    }
+  ]
+}
+```
+
+---
+
+### `PATCH /api/budget/recalculate_used_amount`
+Sincroniza e recalcula o campo `used_amount` no banco de dados com base na soma real das despesas confirmadas (`status = 'completed'`). Funciona como mecanismo de consistência/auto-heal.
+
+**Query Params:**
+| Parâmetro     | Tipo     | Obrigatório | Descrição                             |
+| ------------- | -------- | ----------- | ------------------------------------- |
+| `category_id` | `UUID`   | Sim         | ID da categoria                       |
+| `year`        | `number` | Sim         | Ano de referência                     |
+| `month`       | `number` | Sim         | Mês de referência (1 a 12)            |
+
+**Exemplo:** `PATCH /api/budget/recalculate_used_amount?category_id=uuid-cat&year=2026&month=10`
+
+**Resposta `200`:**
+```json
+{
+  "result": {
+    "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc",
+    "display_id": 1,
+    "wallet_id": "c0a80101-0000-0000-0000-000000000001",
+    "category_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "recurrence_group_id": null,
+    "year": 2026,
+    "month": 10,
+    "target_amount": "1500.00",
+    "used_amount": "450.00",
+    "created_at": "2026-10-01T12:00:00.000Z",
+    "updated_at": "2026-10-11T14:50:00.000Z"
+  }
+}
+```
+
+---
+
+### `DELETE /api/budget/delete/:id`
+Exclui um orçamento avulso ou aplica exclusão em grupo a partir do mês selecionado.
+
+**Parâmetros de Rota:**
+- `:id`: UUID do orçamento.
+
+**Query Params:**
+| Parâmetro | Tipo     | Obrigatório | Descrição                                                          |
+| --------- | -------- | ----------- | ------------------------------------------------------------------ |
+| `scope`   | `string` | Não         | Enum: `'single'` ou `'following'` (default: `'single'`).           |
+
+**Regras de Negócio:**
+- `scope: 'single'`: Remove unicamente o registro informado por `:id`.
+- `scope: 'following'`: Remove o registro atual e todos os meses futuros daquele grupo recorrente, mantendo os meses passados intactos.
+- Se o registro for avulso e receber `scope: 'following'`, retorna `400 Bad Request`.
+
+**Resposta `200` (`scope: 'single'`):**
+```json
+{
+  "message": "Orçamento excluído com sucesso!",
+  "budget": {
+    "id": "e9b2571f-0e4f-4d6b-bfa9-123456789abc"
+  }
+}
+```
+
+**Resposta `200` (`scope: 'following'`):**
+```json
+{
+  "message": "Orçamentos excluídos com sucesso!",
+  "budgets": [
+    { "id": "uuid-1" },
+    { "id": "uuid-2" }
+  ]
+}
+```
+
+---
+
+## 🚨 Status Codes e Erros
+
+| Status | Significado                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| `400`  | Erro de validação (Zod) ou regra de negócio (ex: categoria de receita em orçamento)           |
+| `401`  | Token JWT ausente ou inválido                                                                  |
+| `403`  | Sem permissão para acessar a carteira                                                          |
+| `404`  | Recurso não encontrado                                                                         |
+| `409`  | Conflito / Duplicidade (ex: já existe orçamento cadastrado para a categoria neste mês e ano)   |
+| `422`  | Violação de regra de negócio (ex: saldo insuficiente)                                          |
+| `429`  | Muitas requisições (rate limit)                                                                |
+| `500`  | Erro interno do servidor                                                                       |
 
 **Formato padrão de erro:**
 ```json

@@ -37,6 +37,7 @@ A interface principal deve ter um layout de "Dashboard" clássico, priorizando o
     *   💸 Transações
     *   💳 Cartões de Crédito (Faturas)
     *   🏦 Contas Bancárias
+    *   🎯 Orçamentos e Metas de Gastos
     *   📈 Investimentos
     *   📋 Relatórios
     *   ⚙️ Configurações (Sub-menu para Categorias, Contrapartes, Membros)
@@ -93,7 +94,13 @@ O coração operacional do sistema, onde o usuário passa tempo buscando ou lan�
 *   **Visão Geral das Contas:** Cards mostrando Instituição (Banco), Saldo e um indicativo visual se a conta permite saldo negativo (`allow_negative_balance`).
 *   **Modal CRUD:** Adicionar conta, editar nome, ajustar saldo.
 
-### 3.6. Investimentos (Diferencial do App)
+### 3.6. Orçamentos e Metas de Gastos (Budgets)
+Permite que o usuário estabeleça tetos mensais por categoria de despesa e acompanhe o ritmo de gastos preventivamente.
+*   **Cards de Categoria:** Cada categoria orçada exibe uma barra de progresso visual (verde, amarela, vermelha), valor gasto vs teto planejado, e o restante disponível para gastar.
+*   **Resumo Superior:** Métricas claras de teto total, gastos realizados, sobra de meta e projeção de sobra no caixa ao cumprir o orçamento planejado.
+*   **Gestão de Recorrência e Meses Atípicos:** Permite criar metas recorrentes (de 2 a 12 meses) e ajustar meses específicos (ex: aumento de gastos em Dezembro) com escolha de escopo pontual ou em cascata.
+
+### 3.7. Investimentos (Diferencial do App)
 A base de dados separa as transações de investimento (`investments_transactions`), então precisamos de um ambiente próprio para isso, para não sujar o fluxo de caixa normal de gastos.
 *   **Dashboard Específico:** Saldo Total Investido.
 *   **Lista de Ativos (`investment_assets`):** Nome do ativo, Conta de Origem vinculada, Data de vencimento do ativo, e o saldo atualizado.
@@ -101,13 +108,13 @@ A base de dados separa as transações de investimento (`investments_transaction
     *   Exibe um gráfico de crescimento do patrimônio (opcional para o futuro).
     *   **Histórico de Movimentações:** Tabela detalhando tudo que rolou com aquele ativo: Depósito (`deposit`), Rendimento Mensal (`earnings`), Resgate (`liquidation`), Impostos e Taxas. O usuário precisa de botões para lançar essas ações separadamente.
 
-### 3.7. Relatórios Analíticos
+### 3.8. Relatórios Analíticos
 Visões para o usuário tomar decisões.
 *   **DRE Simplificado:** Uma visão contábil em tabela resumida: Total de Receitas - Total de Despesas = Resultado do Mês (Lucro/Prejuízo).
 *   **Análise por Categoria:** Gráfico mostrando de forma percentual e nominal os maiores ralos de dinheiro.
 *   **Projeção de Saldos:** Gráfico de linhas evolutivo. Pega o saldo de hoje e, através das transações com status `pending` nos próximos dias, desenha se a conta vai ficar negativa.
 
-### 3.8. Configurações da Carteira e Auxiliares
+### 3.9. Configurações da Carteira e Auxiliares
 Telas simples de listagem, cadastro e edição.
 *   **Categorias:** Lista agrupada por "Receitas" e "Despesas".
 *   **Contrapartes:** Lista de quem eu pago ou quem me paga (Payers/Payees).
