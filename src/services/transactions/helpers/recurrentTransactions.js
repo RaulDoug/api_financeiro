@@ -1,7 +1,7 @@
 import { addMonths, format, setDate } from 'date-fns';
 import crypto from 'crypto';
 import { buildPayloadForCreate, createInsertQuery } from './transactionsBuilders.js';
-import { updateBankAccountBalanceHelper } from './transactionsHelpers.js';
+import { updateBankAccountBalanceHelper, syncBudgetHelper } from './transactionsHelpers.js';
 
 export const recurrentTransactionHelper =  async (data, payMethodValues, bankAccount, value, client) => {
   let payload = {};
@@ -72,6 +72,12 @@ export const recurrentTransactionHelper =  async (data, payMethodValues, bankAcc
 
     // Adiciona a parcela no array de resultados
     result.push(installmentResult.rows[0]);
+  }
+
+  for (const item of result) {
+    if (item.status === 'completed') {
+      await syncBudgetHelper(item, client);
+    }
   }
 
   await client.query('COMMIT');

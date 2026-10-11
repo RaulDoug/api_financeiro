@@ -9,6 +9,7 @@ import {
   updateBankAccountBalanceHelper,
   validateResoureceOwnershipHelper,
   revertingBalance,
+  syncBudgetHelper,
 } from './helpers/transactionsHelpers.js';
 import {
   buildPayloadForCreate,
@@ -225,6 +226,9 @@ export default class TransactionServices {
 
       const result = await client.query(query);
 
+      // Recalcula o orçamento da categoria da transação inserida
+      await syncBudgetHelper(result.rows[0], client);
+
       await client.query('COMMIT');
 
       return result.rows[0];
@@ -313,6 +317,7 @@ export default class TransactionServices {
       }
 
       if (Object.keys(fieldsToUpdate).length === 0) {
+        await client.query('ROLLBACK');
         return {
           message: 'Nenhum valor foi alterado',
           item: currentTransaction,
@@ -364,6 +369,10 @@ export default class TransactionServices {
           finalBankAccountId,
           currentTransaction,
         });
+
+        for (const item of (result.allTransactionsUpdateResult || [])) {
+          await syncBudgetHelper(item, client);
+        }
 
         await client.query('COMMIT');
 
@@ -465,6 +474,10 @@ export default class TransactionServices {
             finalType,
           });
 
+          for (const item of allInstallmentsUpdateResult) {
+            await syncBudgetHelper(item, client);
+          }
+
           await client.query('COMMIT');
 
           return allInstallmentsUpdateResult;
@@ -475,6 +488,10 @@ export default class TransactionServices {
           allInstallmentsUpdateResult = await updateAllRecurrentTransactionHelper(
             { client, payload, i, allInstallmentsUpdateResult, transaction_id },
           );
+
+          for (const item of allInstallmentsUpdateResult) {
+            await syncBudgetHelper(item, client);
+          }
 
           await client.query('COMMIT');
 
@@ -490,10 +507,17 @@ export default class TransactionServices {
 
       query = createUpdateQuery(payload, transaction_id);
       const result = await client.query(query);
+      const updatedTransaction = result.rows[0];
+
+      // 1. Recalcula categoria/mês de origem (caso categoria ou data tenham mudado)
+      await syncBudgetHelper(currentTransaction, client);
+
+      // 2. Recalcula categoria/mês de destino
+      await syncBudgetHelper(updatedTransaction, client);
 
       await client.query('COMMIT');
 
-      return result.rows[0];
+      return updatedTransaction;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -614,6 +638,11 @@ export default class TransactionServices {
             [transactionValues.installments_group_id],
           );
 
+          // Recalcula o orçamento da categoria da transação editada
+          for (const item of deleteTransactionByInstallmentsGropId.rows) {
+            await syncBudgetHelper(item, client);
+          }
+
           response = {
             message: 'Todas as parcelas foram excluídas com sucesso!',
             itens: deleteTransactionByInstallmentsGropId.rows,
@@ -642,6 +671,8 @@ export default class TransactionServices {
             'DELETE FROM transactions WHERE id = $1 RETURNING *',
             [transactionValues.id],
           );
+
+          await syncBudgetHelper(transactionValues, client);
 
           // Buscar parcelas restantes e reordenar o current_installment
           const remainderTransactions = await client.query(
@@ -699,6 +730,9 @@ export default class TransactionServices {
           'DELETE FROM transactions WHERE id = $1 RETURNING *',
           [transactionValues.id],
         );
+
+        // Recalcula o orçamento da categoria da transação editada
+        await syncBudgetHelper(transactionValues, client);
 
         response = {
           message: 'Transação excluída com sucesso!',

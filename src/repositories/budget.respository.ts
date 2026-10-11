@@ -68,7 +68,9 @@ export type getSummaryResponse = Promise<{
   total_target: number,
   total_used: number,
   total_remaining_budget: number,
-  forecasted_savings_if_budget_kept: number
+  forecasted_savings_if_budget_kept: number,
+  projected_savings_realistic: number,
+  unbudgeted_expenses: number
 }>
 
 export class BudgetRepository {
@@ -241,7 +243,7 @@ export class BudgetRepository {
   }
 
   async recalculateUsedAmount(data: CalculateCategoryAmountData, db: Pool | PoolClient = pool): Promise<Budget> {
-    const total = await this.calculateCategoryAmount(data);
+    const total = await this.calculateCategoryAmount(data, db);
 
     const query = `
       UPDATE category_budgets
@@ -258,8 +260,10 @@ export class BudgetRepository {
   async getSummary(data: getSummaryData, db: Pool | PoolClient = pool): getSummaryResponse {
     const budgetCalculate = await db.query(
       `
-        SELECT COALESCE(SUM(target_amount), 0) AS total_target,
-        COALESCE(SUM(used_amount), 0) AS total_used
+        SELECT 
+          COALESCE(SUM(target_amount), 0) AS total_target,
+          COALESCE(SUM(used_amount), 0) AS total_used,
+          COALESCE(SUM(GREATEST(target_amount, used_amount)), 0) AS projected_budgeted
         FROM category_budgets
         WHERE wallet_id = $1
         AND year = $2
@@ -286,11 +290,39 @@ export class BudgetRepository {
       [data.wallet_id, firstDay, lastDay],
     );
 
+    const unbudgetedQuery = await db.query(
+      `
+        SELECT COALESCE(SUM(t.value), 0) AS unbudgeted_expenses
+        FROM transactions t
+        WHERE t.wallet_id = $1
+        AND t.due_date >= $2
+        AND t.due_date <= $3
+        AND t.type = 'expenses'
+        AND t.status != 'cancelled'
+        AND NOT EXISTS (
+          SELECT 1 FROM category_budgets cb
+          WHERE cb.wallet_id = t.wallet_id
+          AND cb.category_id = t.category_id
+          AND cb.year = $4
+          AND cb.month = $5
+        );
+      `,
+      [data.wallet_id, firstDay, lastDay, data.year, data.month],
+    ); 
+
     const total_target = Number(budgetCalculate.rows[0].total_target);
     const total_used = Number(budgetCalculate.rows[0].total_used);
+    const projected_budgeted = Number(budgetCalculate.rows[0].projected_budgeted);
+
     const total_incomings = Number(transactionsSum.rows[0].total_incomings);
-    const total_remaining_budget = total_target - total_used;
+    const unbudgeted_expenses = Number(unbudgetedQuery.rows[0].unbudgeted_expenses);
+
     const forecasted_savings_if_budget_kept = total_incomings - total_target;
+
+    const total_remaining_budget = total_target - total_used;
+
+    const total_projected_expenses = projected_budgeted + unbudgeted_expenses;
+    const projected_savings_realistic = total_incomings - total_projected_expenses;
 
 
     return {
@@ -298,6 +330,8 @@ export class BudgetRepository {
       total_used,
       total_remaining_budget,
       forecasted_savings_if_budget_kept,
+      projected_savings_realistic,
+      unbudgeted_expenses,
     };
   }
 }

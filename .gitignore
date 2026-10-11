@@ -5,3 +5,4 @@ node_modules
 analises_implementacao
 seedSQL.sql
 seed_injector
+seed_test.sql

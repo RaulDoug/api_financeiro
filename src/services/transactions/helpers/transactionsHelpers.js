@@ -1,6 +1,7 @@
 import pool from '../../../config/db.js';
 import { format, startOfDay } from 'date-fns';
 import AppError from '../../../errors/AppError.js';
+import { budgetRepository } from '../../../repositories/budget.respository.js';
 
 export const userValidateHelper = async (userId, walletId) => {
   const result = await pool.query(
@@ -125,3 +126,24 @@ export const revertingBalance = (currentBalance, value, type) => {
     return Number(currentBalance) - Number(value);
   }
 };
+
+export async function syncBudgetHelper({ wallet_id, category_id, due_date }, client) {
+  if (!category_id || !due_date) return;
+
+  let year, month;
+  if (due_date instanceof Date) {
+    year = due_date.getFullYear();
+    month = due_date.getMonth() + 1;
+  } else {
+    const [y, m] = String(due_date).split('T')[0].split('-');
+    year = Number(y);
+    month = Number(m);
+  }
+
+  await budgetRepository.recalculateUsedAmount({
+    wallet_id,
+    category_id,
+    month,
+    year,
+  }, client);
+}

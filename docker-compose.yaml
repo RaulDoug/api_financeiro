@@ -21,7 +21,8 @@ services:
       - "5433:5432"
     volumes:
       - financeiro_db_test_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./seed_test.sql:/docker-entrypoint-initdb.d/02_seed_test.sql
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Raul@2025
