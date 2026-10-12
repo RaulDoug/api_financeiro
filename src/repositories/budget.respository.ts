@@ -234,7 +234,7 @@ export class BudgetRepository {
       AND category_id = $2
       AND due_date >= $3
       AND due_date <= $4
-      AND status = 'completed';
+      AND status != 'cancelled';
     `;
 
     const result = await db.query(query, [wallet_id, category_id, firstDay, lastDay]);
