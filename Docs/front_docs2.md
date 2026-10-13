@@ -285,10 +285,10 @@ Sem filtros, usa o mês corrente automaticamente.
 | Pendente a Pagar   | `pendingExpenses` | Saídas `pending` no mês   |
 
 > **Lógica dos Indicadores de Previsão:**  
-> - **`monthForecast` (Sobra Operacional do Mês):** `(completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses)`. Considera unicamente as movimentações (receitas e despesas) do período selecionado, sem misturar com saldos anteriores.  
-> - **`monthForecastFinal` (Saldo Final Projetado em Conta):** `totalBalance + pendingIncomes - pendingExpenses`. Considera o saldo atual acumulado em todas as contas e projeta quanto restará em conta após a quitação das pendências.  
+> - **`monthForecast` (Sobra do Mês / Sem Saldo Anterior):** `(completedIncomes + pendingIncomes) - totalProjectedExpenses`. Considera a soma das receitas e desconta o teto de gastos orçado por categoria (ou valor gasto se extrapolou a meta) somado às despesas de categorias não orçadas.  
+> - **`monthForecastFinal` (Saldo Final Projetado em Conta):** `totalBalance + pendingIncomes - Math.max(0, totalProjectedExpenses - completedExpenses)`. Considera o saldo atual acumulado nas contas, soma as receitas pendentes e desconta apenas o que ainda resta gastar para cobrir os orçamentos e contas pendentes, sem duplicar o que já foi debitado da conta.  
 >  
-> **💡 Dica de UI/UX para o Front-End:** Pode ser implementado com um seletor/toggle no card de projeção (ex: *"Apenas transações deste mês"* vs *"Considerando saldo em conta"*) ou exibindo o Saldo Final Projetado como destaque principal e a Sobra Operacional do Mês como subtítulo.
+> **💡 Dica de UI/UX para o Front-End:** Pode ser implementado com um seletor/toggle no card de projeção (ex: *"Apenas transações/orçamentos do mês"* vs *"Considerando saldo em conta"*) ou exibindo o Saldo Final Projetado como destaque principal e a Sobra do Mês como subtítulo.
 
 ### 5.2 Linha 2 — Gráficos Principais
 

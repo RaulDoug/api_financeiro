@@ -70,7 +70,8 @@ export type getSummaryResponse = Promise<{
   total_remaining_budget: number,
   forecasted_savings_if_budget_kept: number,
   projected_savings_realistic: number,
-  unbudgeted_expenses: number
+  unbudgeted_expenses: number,
+  total_projected_expenses: number
 }>
 
 export class BudgetRepository {
@@ -332,6 +333,7 @@ export class BudgetRepository {
       forecasted_savings_if_budget_kept,
       projected_savings_realistic,
       unbudgeted_expenses,
+      total_projected_expenses,
     };
   }
 }

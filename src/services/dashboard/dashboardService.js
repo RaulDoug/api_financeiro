@@ -2,6 +2,9 @@ import { format } from 'date-fns';
 import pool from '../../config/db.js';
 import { resolveDateRange } from './dashboardHelper.js';
 import { todayHelper } from '../transactions/helpers/transactionsHelpers.js';
+import BudgetService from '../budgetService.js';
+
+const budgetService = new BudgetService();
 
 export default class DashboardService {
   async getCompletedIncomes(walletId, filters = {}) {
@@ -113,14 +116,30 @@ export default class DashboardService {
   }
 
   async getMonthForecast(walletId, filters = {}) {
+    const { startDate } = resolveDateRange(filters);
+    const date = new Date(startDate);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+
     const completedIncomes = (await this.getCompletedIncomes(walletId, filters)).total;
     const pendingIncomes = (await this.getPendingIncomes(walletId, filters)).total;
     const completedExpenses = (await this.getCompletedExpenses(walletId, filters)).total;
-    const pendingExpenses = (await this.getPendingExpenses(walletId, filters)).total;
     const totalBalance = (await this.getTotalAccountBalance(walletId)).total;
 
-    const projectedBalance = (completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses);
-    const projectedFinalBalance = totalBalance + pendingIncomes - pendingExpenses;
+    // Resumo de orçamento do mês
+    const budgetSummary = await budgetService.getBudgetSummary(walletId, {year, month});
+
+    // Despesas total prevista
+    const totalProjectedExpenses = budgetSummary.total_projected_expenses;
+
+    // Previsão sem saldo em conta (fluxo do mês receitas - despesas orçadas)
+    const totalIncomes = completedIncomes + pendingIncomes;
+    const projectedBalance = totalIncomes - totalProjectedExpenses;
+
+    // 4. Previsão com saldo em conta (quanto restará na carteira no fim do mês)
+    // Desconta apenas o que AINDA falta gastar do orçamento
+    const remainingToSpend = Math.max(0, totalProjectedExpenses - completedExpenses);
+    const projectedFinalBalance = totalBalance + pendingIncomes - remainingToSpend;
 
     return {
       projected_balance: Number(projectedBalance.toFixed(2)),

@@ -1385,8 +1385,8 @@ Resumo financeiro da carteira: entradas, saídas, pendências e projeção do m�
 | `pendingIncomes`     | Total de entradas pendentes no período                                                                                       |
 | `pendingExpenses`    | Total de despesas pendentes no período                                                                                       |
 | `totalBalance`       | Saldo total somado de todas as contas                                                                                        |
-| `monthForecast`      | Sobra Operacional do Mês (apenas transações): `(completedIncomes + pendingIncomes) - (completedExpenses + pendingExpenses)`        |
-| `monthForecastFinal` | Saldo Final Projetado em Conta (considera o saldo em conta): `totalBalance + pendingIncomes - pendingExpenses`                |
+| `monthForecast`      | Sobra Projetada do Mês (sem saldo anterior): `(completedIncomes + pendingIncomes) - totalProjectedExpenses`. Considera o teto de gastos orçados por categoria (ou o gasto real caso ultrapasse a meta) somado às despesas de categorias não orçadas. |
+| `monthForecastFinal` | Saldo Final Projetado em Conta (com saldo atual): `totalBalance + pendingIncomes - Math.max(0, totalProjectedExpenses - completedExpenses)`. Desconta apenas o que ainda resta gastar para cobrir os orçamentos e contas pendentes sem duplicar pagamentos já realizados. |
 
 ---
 
@@ -1723,7 +1723,10 @@ Retorna métricas consolidadas do mês para acompanhamento da saúde financeira 
     "total_target": 3500,
     "total_used": 1850,
     "total_remaining_budget": 1650,
-    "forecasted_savings_if_budget_kept": 2500
+    "forecasted_savings_if_budget_kept": 2500,
+    "projected_savings_realistic": 2300,
+    "unbudgeted_expenses": 200,
+    "total_projected_expenses": 3700
   }
 }
 ```
@@ -1732,7 +1735,10 @@ Retorna métricas consolidadas do mês para acompanhamento da saúde financeira 
 - `total_target`: Soma de todas as metas orçadas nas categorias para o mês (`target_amount`).
 - `total_used`: Total efetivamente gasto nas categorias orçadas (`used_amount`).
 - `total_remaining_budget`: Margem de orçamento que ainda pode ser gasta (`total_target - total_used`).
-- `forecasted_savings_if_budget_kept`: Previsão de economia real no caixa caso todos os orçamentos sejam rigorosamente cumpridos (`total_incomings - total_target`).
+- `forecasted_savings_if_budget_kept`: Previsão teórica de sobra caso os orçamentos sejam rigorosamente cumpridos (`total_incomings - total_target`).
+- `projected_savings_realistic`: Previsão realista de sobra considerando despesas orçadas (`GREATEST(meta, gasto)`) e despesas não orçadas (`total_incomings - total_projected_expenses`).
+- `unbudgeted_expenses`: Total de despesas lançadas em categorias que não possuem orçamento definido no mês.
+- `total_projected_expenses`: Total consolidado de despesas projetadas para o mês (`projected_budgeted + unbudgeted_expenses`).
 
 ---
 
