@@ -67,7 +67,7 @@ export default class TransactionServices {
 
       // Lançamento de despesas.
       if (data.type === 'expenses' && payMethodValues.rows[0].credit_card === false && data.is_recurrent === false) {
-        const newBalance = Number(bankAccount.accountBalance) - Number(value);
+        const newBalance = Math.round((Number(bankAccount.accountBalance) - Number(value)) * 100) / 100;
 
         if (!data.due_date) {
           throw new AppError('Os campos de data da transação e data de vencimento são obrigatórios');
@@ -103,7 +103,7 @@ export default class TransactionServices {
 
       // Lançamento de entradas.
       if (data.type === 'incomings') {
-        const newBalance = Number(bankAccount.accountBalance) + Number(value);
+        const newBalance = Math.round((Number(bankAccount.accountBalance) + Number(value)) * 100) / 100;
 
         if (payMethodValues.rows[0].credit_card === true) {
           throw new AppError('Lançamento de entradas não é permitido para o método de pagamento definido como cartão de crédito', 422);
@@ -150,9 +150,9 @@ export default class TransactionServices {
             transfers_id: transferId,
             type: 'transfer_out',
           };
-          const expenseAccountNewBalance = Number(bankAccountOutBalance.accountBalance) - Number(value); // Calcula o novo valor da conta de origem
+          const expenseAccountNewBalance = Math.round((Number(bankAccountOutBalance.accountBalance) - Number(value)) * 100) / 100; // Calcula o novo valor da conta de origem
           // Valida se a conta permite valor negativo ou se não permitir valida se tem saldo suficiente
-          if (!bankAccountOutBalance.allowNegative && expenseAccountNewBalance < 0) {
+          if (!bankAccountOutBalance.accountAllowNegative && expenseAccountNewBalance < 0) {
             throw new AppError('Conta bancária com saldo insuficente para realizar a transação', 422);
           }
 
@@ -170,7 +170,7 @@ export default class TransactionServices {
             transfers_id: transferId,
             type: 'transfer_in',
           };
-          const incomingAccountNewBalance = Number(bankAccountDestinyBalance.accountBalance) + Number(value); // Novo valor conta de destino
+          const incomingAccountNewBalance = Math.round((Number(bankAccountDestinyBalance.accountBalance) + Number(value)) * 100) /100; // Novo valor conta de destino
 
           await updateBankAccountBalanceHelper(data.destiny_bank_account_id, incomingAccountNewBalance, client); // Atualiza o saldo da conta de saída.
 

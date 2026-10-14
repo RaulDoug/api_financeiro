@@ -86,9 +86,11 @@ export const validateTransactionsFksHelper = async (data, isUpdate = false) => {
 };
 
 export const updateBankAccountBalanceHelper = async (bankAccountId, newBalance, client) => {
+  const roundedBalance = Math.round(Number(newBalance) * 100) / 100;
+
   await client.query(
     'UPDATE bank_accounts SET balance = $1 WHERE id = $2 RETURNING balance',
-    [newBalance, bankAccountId],
+    [roundedBalance, bankAccountId],
   );
 };
 
@@ -109,21 +111,21 @@ export const validateResoureceOwnershipHelper = async (table, resouserId, wallet
 
 export const calculateBalance = (currentBalance, value, type) => {
   if (type === 'expenses' || type === 'transfer_out') {
-    return Number(currentBalance) - Number(value);
+    return Math.round((Number(currentBalance) - Number(value)) * 100) / 100;
   }
 
   if (type === 'incomings' || type === 'transfer_in') {
-    return Number(currentBalance) + Number(value);
+    return Math.round((Number(currentBalance) + Number(value)) * 100) / 100;
   }
 };
 
 export const revertingBalance = (currentBalance, value, type) => {
   if (type === 'expenses' || type === 'transfer_out') {
-    return Number(currentBalance) + Number(value);
+    return Math.round((Number(currentBalance) + Number(value)) * 100) / 100;
   }
 
   if (type === 'incomings' || type === 'transfer_in') {
-    return Number(currentBalance) - Number(value);
+    return Math.round((Number(currentBalance) - Number(value)) * 100) / 100;
   }
 };
 
