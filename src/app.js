@@ -11,6 +11,7 @@ import investimentAssetRoutes from './routes/investimentAssetRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import walletInviteRoutes from './routes/walletInviteRoutes.js';
 import budgetRoutes from './routes/budgetRoutes.js';
+import healthRoutes from './routes/healthRoutes.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/budget', budgetRoutes);
 app.use('/api/investiment-asset', investimentAssetRoutes);
 app.use('/api/dashboard-report', dashboardRoutes);
 app.use('/api/wallet-invite', walletInviteRoutes);
+app.use('/api/health', healthRoutes);
 
 
 export default app;
