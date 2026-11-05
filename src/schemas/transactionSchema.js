@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+// Função para validar se data não utlrapassa o fim do dia atual
+const isNotFutureDate = (date) => {
+  if (!date) return true; // Se não houver data, não há violação
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  return date <= endOfToday;
+};
+
+
 // Regras individuais dos campos
 const walletIdValidation = z.string().uuid('ID da carteira inválido');
 const bankAccountIdValidation = z.string({
@@ -19,8 +28,8 @@ const statusValidation = z.enum(['pending', 'completed', 'cancelled', 'expired']
 const valueValidation = z.coerce.number().positive('O valor deve ser maior que zero');
 const descriptionValidation = z.string().min(3, 'A descrição deve conter no mínimo 3 caracteres').max(255);
 const dueDateValidation = z.coerce.date({ message: 'Data inválida' }).optional();
-const paymentDateValidation = z.coerce.date({ message: 'Data inválida' }).max(new Date(), { message: 'A data de pagamento não pode ser uma data futura' }).optional();
-const purchaseDateValidation = z.coerce.date({ message: 'Data inválida' }).max(new Date(), { message: 'A data da compra não pode ser uma data futura' }).optional();
+const paymentDateValidation = z.coerce.date({ message: 'Data inválida' }).refine(isNotFutureDate, { message: 'A data de pagamento não pode ser uma data futura' }).optional();
+const purchaseDateValidation = z.coerce.date({ message: 'Data inválida' }).refine(isNotFutureDate, { message: 'A data da compra não pode ser uma data futura' }).optional();
 const destinyBankAccountIdValidation = z.string().uuid('ID da conta bancária de destino inválido').optional();
 const installmentsNumberValidation = z.coerce.number().int().positive('O número de parcelas deve ser positivo').optional();
 const dueDayValidation = z.union([z.number().int().min(1).max(31), z.string()]).optional();
